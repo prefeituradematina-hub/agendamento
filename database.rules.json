@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+    "slots": {
+      "$date": {
+        ".read": "auth != null",
+        "$time": {
+          ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid) || (data.child('uid').val() === auth.uid && (!newData.exists() || newData.child('uid').val() === auth.uid)) || root.child('admins').child(auth.uid).val() === true)",
+          ".validate": "!newData.exists() || (newData.hasChildren(['uid']) && newData.child('uid').isString() && newData.child('uid').val() === auth.uid && newData.child('uid').val().length <= 128)"
+        }
+      }
+    },
+    "appointments": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        "$protocol": {
+          ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+          ".validate": "!newData.exists() || (newData.child('uid').val() === $uid && newData.child('protocol').val() === $protocol && newData.child('name').isString() && newData.child('name').val().length >= 3 && newData.child('name').val().length <= 120 && newData.child('cpf').isString() && newData.child('cpf').val().matches(/^\\d{11}$/) && newData.child('phone').isString() && newData.child('phone').val().length <= 25 && newData.child('date').isString() && newData.child('date').matches(/^\\d{4}-\\d{2}-\\d{2}$/) && newData.child('time').isString() && newData.child('time').matches(/^(08:(00|15|30|45)|09:(00|15|30|45)|10:(00|15|30|45)|11:(00|15|30|45)|12:(00|15|30|45))$/ && newData.child('status').isString() && (newData.child('status').val() === 'agendado' || newData.child('status').val() === 'cancelado'))"
+        }
+      }
+    }
+  }
+}
