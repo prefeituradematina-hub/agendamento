@@ -23,7 +23,6 @@ export const firebaseConfig = {
   appId: "1:947314343025:web:4e6c5158eec4705437efd0",
   measurementId: "G-ZQZC6SBMD8"
 };
-
 // ---------------------------------------------------------------------
 //  OPCIONAL (recomendado em produção): Firebase App Check com reCAPTCHA v3.
 //  Impede que robôs de fora do seu site preencham as vagas.
