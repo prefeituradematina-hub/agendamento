@@ -325,3 +325,34 @@ export async function anonimizarAntes(corte) {
   await b.commit();
   return n;
 }
+
+// ---------------------------------------------------------------------
+//  Dias de funcionamento (página funcionamento.html)
+// ---------------------------------------------------------------------
+/** Período em que o calendário fica aberto (mantém os demais campos da configuração). */
+export async function salvarPeriodo(abertura, fechamento) {
+  const b = writeBatch(db);
+  b.set(doc(db, 'config', 'geral'), { abertura, fechamento }, { merge: true });
+  audit(b, 'alterar_periodo', '', `${abertura} a ${fechamento}`);
+  await b.commit();
+}
+
+/** itens: [{data, motivo}] — bloqueia vários dias de uma vez (em lotes). */
+export async function bloquearVarias(itens) {
+  for (let i = 0; i < itens.length; i += 100) {
+    const b = writeBatch(db); const parte = itens.slice(i, i + 100);
+    for (const it of parte) b.set(doc(db, 'bloqueios', it.data), { motivo: it.motivo || '', por: quem().email, em: serverTimestamp() });
+    audit(b, 'bloquear_datas', '', parte.map((x) => x.data).join(', ').slice(0, 400) + (it0(parte)));
+    await b.commit();
+  }
+}
+const it0 = (p) => (p[0] && p[0].motivo ? ` | ${p[0].motivo}` : '');
+
+export async function desbloquearVarias(datas) {
+  for (let i = 0; i < datas.length; i += 100) {
+    const b = writeBatch(db); const parte = datas.slice(i, i + 100);
+    for (const d of parte) b.delete(doc(db, 'bloqueios', d));
+    audit(b, 'desbloquear_datas', '', parte.join(', ').slice(0, 400));
+    await b.commit();
+  }
+}

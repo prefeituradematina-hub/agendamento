@@ -25,10 +25,11 @@ export async function getDocs(q) {
 export function writeBatch() {
   const ops = [];
   return {
-    set: (r, d) => ops.push(['set', r.path, d]), update: (r, d) => ops.push(['upd', r.path, d]), delete: (r) => ops.push(['del', r.path]),
+    set: (r, d, o) => ops.push(['set', r.path, d, o]), update: (r, d) => ops.push(['upd', r.path, d]), delete: (r) => ops.push(['del', r.path]),
     async commit() {
       const tmp = new Map(store);
-      for (const [k, p, d] of ops) {
+      for (const [k, p, d, o] of ops) {
+        if (k === 'set' && o && o.merge) { tmp.set(p, { ...tmp.get(p), ...d }); continue; }
         if (k === 'set') { if (tmp.has(p) && /^(vagas|cpfAtivos)\//.test(p)) { const e = new Error('permission-denied'); e.code = 'permission-denied'; throw e; } tmp.set(p, d); }
         if (k === 'upd') tmp.set(p, { ...tmp.get(p), ...d });
         if (k === 'del') tmp.delete(p);

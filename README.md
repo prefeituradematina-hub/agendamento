@@ -61,7 +61,8 @@ O painel permite cancelar agendamentos suspeitos (libera a vaga na hora).
 - **Agendamentos**: busca por nome, CPF, protocolo ou data (dd/mm/aaaa); abrir → presença, concluir, não compareceu, alterar data/horário, cancelar, histórico, comprovante. O CPF aparece mascarado; "mostrar" revela dentro do detalhe.
 - **Controle de vagas**: por dia, "vagas disponíveis: X de 20", concluídos, cancelamentos, faltas.
 - **Novo agendamento**: cadastro manual (mesmas travas de horário e CPF).
-- **Datas e configurações**: bloqueio de feriados/férias (intervalos), endereço, contatos e **janela de abertura do calendário**.
+- **Dias de funcionamento** (`funcionamento.html`, link no painel): calendário mensal com vagas por dia, bloquear/reabrir dias (Ctrl para vários, Shift para intervalo), período de agendamento (+30/60/90 dias) e sugestão de feriados nacionais (Carnaval, Corpus Christi e 2 de julho vêm desmarcados). Atendimento continua só de segunda a sexta (regra fixa do serviço, também nas regras do Firestore).
+- **Configurações**: nome do SAC, endereço e contatos.
 - **Relatórios**: por dia ou mês, exportação em **PDF** e **Excel**.
 - **Auditoria**: quem fez o quê (somente inclusão, ninguém apaga).
 
@@ -91,6 +92,7 @@ O Firebase sozinho não envia e-mail sem servidor. Por isso o botão **"Abrir no
 npm install
 npm test            # lógica (horários, CPF, protocolo, vagas...) – não precisa de Firebase
 npm run test:ui     # navegador real + Firebase simulado (precisa do Playwright)
+node tests/ui/funcionamento.mjs   # página de dias de funcionamento
 npm run test:regras # regras do Firestore no emulador (precisa de Java)
 ```
 

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agendamento da Carteira de Identidade Nacional (CIN) – SAC</title>
+<meta name="description" content="Agende online a emissão da nova Carteira de Identidade Nacional (CIN) no SAC. Serviço gratuito.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topo"><div class="in">
+  <div class="brasao" aria-hidden="true">SAC</div>
+  <h1 id="tNome">SAC – Serviço de Atendimento ao Cidadão<small id="tMun">Agendamento da Carteira de Identidade Nacional</small></h1>
+</div></header>
+
+<main id="main">
+  <div id="avisoCfg" class="erro oculto"></div>
+
+  <!-- ============ INÍCIO ============ -->
+  <section id="vInicio">
+    <div class="hero">
+      <span class="selo">SERVIÇO 100% GRATUITO</span>
+      <h2>Agende a emissão da sua nova Carteira de Identidade Nacional (CIN)</h2>
+      <p>Escolha o dia e o horário pela internet, sem sair de casa. <strong>Não há cobrança de nenhuma taxa de agendamento.</strong></p>
+      <button class="btn amarelo grande" id="bAgendar">REALIZAR AGENDAMENTO</button>
+      <div style="margin-top:12px"><button class="btn claro grande" id="bConsultar" style="background:transparent;color:#fff;border-color:#fff">Consultar ou cancelar agendamento</button></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>📄 Documentação necessária</h2>
+        <ul>
+          <li><strong>Pessoas solteiras:</strong> apresentar a <em>certidão de nascimento</em>.</li>
+          <li><strong>Pessoas casadas:</strong> apresentar a <em>certidão de casamento</em>.</li>
+        </ul>
+        <div class="aviso"><strong>Atenção:</strong> leve a documentação necessária no dia do atendimento.</div>
+      </div>
+      <div class="card">
+        <h2>🕗 Funcionamento</h2>
+        <p><strong>Segunda a sexta-feira</strong>, das <strong>8h às 13h</strong>.<br>
+        Atendimentos de 15 em 15 minutos, com <strong>20 vagas por dia</strong>.<br>
+        Não há atendimento aos sábados, domingos e datas bloqueadas.</p>
+        <h2 style="margin-top:14px">📍 Onde fica</h2>
+        <p id="infoLocal">—</p>
+      </div>
+    </div>
+    <p class="rodape">Seus dados são usados somente para este agendamento, conforme a Lei Geral de Proteção de Dados (LGPD). <a href="#" id="lkPriv">Saiba mais</a></p>
+  </section>
+
+  <!-- ============ AGENDAMENTO ============ -->
+  <section id="vAgendar" class="oculto">
+    <div class="card">
+      <ol class="passos" id="passos"><li>1. Dados</li><li>2. Data e horário</li><li>3. Confirmar</li></ol>
+
+      <!-- passo 1 -->
+      <form id="f1" novalidate autocomplete="on">
+        <h2>Seus dados</h2>
+        <div class="ok" style="margin-top:0">A emissão da CIN é <strong>gratuita</strong>. Nenhum pagamento é solicitado.</div>
+        <label for="nome">Nome completo</label>
+        <input id="nome" name="name" autocomplete="name" maxlength="120" required>
+        <div class="erro-campo" data-e="nome"></div>
+        <label for="cpf">CPF</label>
+        <input id="cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required>
+        <div class="erro-campo" data-e="cpf"></div>
+        <label for="nasc">Data de nascimento</label>
+        <input id="nasc" type="date" autocomplete="bday" required>
+        <div class="erro-campo" data-e="nasc"></div>
+        <label for="tel">Celular com DDD</label>
+        <input id="tel" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="15" placeholder="(73) 91234-5678" required>
+        <div class="erro-campo" data-e="tel"></div>
+        <label for="email">E-mail <span class="dica">(opcional)</span></label>
+        <input id="email" type="email" autocomplete="email" maxlength="120">
+        <div class="erro-campo" data-e="email"></div>
+        <label for="cert">Tipo de certidão que você vai levar</label>
+        <select id="cert" required>
+          <option value="">Selecione…</option>
+          <option value="nascimento">Certidão de nascimento (pessoa solteira)</option>
+          <option value="casamento">Certidão de casamento (pessoa casada)</option>
+        </select>
+        <div class="erro-campo" data-e="cert"></div>
+        <div class="aviso">Leve a certidão <strong>original</strong> escolhida acima no dia do atendimento.</div>
+        <div class="acoes"><button type="button" class="btn claro" data-voltar>Voltar</button><button class="btn" type="submit">Continuar</button></div>
+      </form>
+
+      <!-- passo 2 -->
+      <div id="p2" class="oculto">
+        <h2>Escolha a data</h2>
+        <div class="cal-nav"><button class="btn claro peq" id="mAnt" aria-label="Mês anterior">◀</button><strong id="mTit"></strong><button class="btn claro peq" id="mProx" aria-label="Próximo mês">▶</button></div>
+        <div class="cal" id="cal" role="grid"></div>
+        <div id="boxHoras" class="oculto">
+          <h2 style="margin-top:18px">Horários disponíveis em <span id="hData"></span></h2>
+          <div id="horas" class="horas"></div>
+          <div id="semVagas" class="aviso oculto">Não há horários livres nesta data. Escolha outro dia.</div>
+        </div>
+        <div class="erro-campo" id="e2"></div>
+        <div class="acoes"><button type="button" class="btn claro" id="v2">Voltar</button><button type="button" class="btn" id="c2" disabled>Continuar</button></div>
+      </div>
+
+      <!-- passo 3 -->
+      <div id="p3" class="oculto">
+        <h2>Confira e confirme</h2>
+        <dl class="resumo" id="resumo"></dl>
+        <div class="aviso">Seu horário <strong>só é garantido</strong> depois que aparecer o comprovante com o número de protocolo.</div>
+        <label class="check"><input type="checkbox" id="lgpd"> <span>Li e concordo que meus dados sejam usados apenas para este agendamento (LGPD).</span></label>
+        <div id="e3" class="erro oculto"></div>
+        <div class="acoes"><button type="button" class="btn claro" id="v3">Voltar</button><button type="button" class="btn verde" id="c3">CONFIRMAR AGENDAMENTO</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMPROVANTE ============ -->
+  <section id="vComp" class="oculto">
+    <div id="compBox"></div>
+  </section>
+
+  <!-- ============ CONSULTAR ============ -->
+  <section id="vConsulta" class="oculto">
+    <div class="card">
+      <h2>Consultar ou cancelar agendamento</h2>
+      <p>Por segurança, informe os três dados abaixo. Só assim é possível ver o agendamento.</p>
+      <form id="fc" novalidate>
+        <label for="cProt">Número de protocolo</label>
+        <input id="cProt" placeholder="CIN-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" required>
+        <label for="cCpf">CPF</label>
+        <input id="cCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" autocomplete="off" required>
+        <label for="cNasc">Data de nascimento</label>
+        <input id="cNasc" type="date" required>
+        <div id="eC" class="erro oculto"></div>
+        <div class="acoes"><button type="button" class="btn claro" data-voltar>Voltar</button><button class="btn" type="submit">Consultar</button></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="vPriv" class="oculto">
+    <div class="card">
+      <h2>Privacidade e proteção de dados (LGPD)</h2>
+      <p><strong>Finalidade:</strong> agendar o atendimento para emissão da CIN no SAC.</p>
+      <p><strong>Dados coletados:</strong> nome, CPF, data de nascimento, celular, e-mail (opcional) e tipo de certidão — somente o necessário.</p>
+      <p><strong>Quem acessa:</strong> apenas servidores autorizados do SAC. O CPF nunca aparece completo em comprovantes, endereços (URLs) ou páginas públicas.</p>
+      <p><strong>Retenção:</strong> os dados pessoais são apagados (anonimizados) após o prazo definido pela administração.</p>
+      <p><strong>Seus direitos:</strong> pedir acesso, correção ou exclusão dos seus dados, no contato do SAC informado nesta página.</p>
+      <div class="acoes"><button class="btn" data-voltar>Voltar</button></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast oculto" role="status"></div>
+<script type="module" src="js/citizen.js"></script>
+</body>
+</html>

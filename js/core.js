@@ -298,3 +298,34 @@ export function agruparPor(lista, chaveFn) {
   }
   return m;
 }
+
+// ---------------------------------------------------------------------
+//  Feriados (para sugerir bloqueios no painel; a administração decide)
+// ---------------------------------------------------------------------
+/** Domingo de Páscoa (algoritmo de Meeus/Jones/Butcher). */
+export function pascoa(ano) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${ano}-${pad2(mes)}-${pad2(dia)}`;
+}
+
+/** [{data, nome, tipo}] tipo: 'feriado' | 'facultativo' | 'estadual-ba' */
+export function feriadosDoAno(ano) {
+  const p = pascoa(ano); const f = (md, nome, tipo = 'feriado') => ({ data: `${ano}-${md}`, nome, tipo });
+  return [
+    f('01-01', 'Confraternização Universal'),
+    { data: somarDias(p, -48), nome: 'Carnaval (segunda)', tipo: 'facultativo' },
+    { data: somarDias(p, -47), nome: 'Carnaval (terça)', tipo: 'facultativo' },
+    { data: somarDias(p, -2), nome: 'Sexta-feira Santa', tipo: 'feriado' },
+    f('04-21', 'Tiradentes'), f('05-01', 'Dia do Trabalho'),
+    { data: somarDias(p, 60), nome: 'Corpus Christi', tipo: 'facultativo' },
+    f('07-02', 'Independência da Bahia', 'estadual-ba'),
+    f('09-07', 'Independência do Brasil'), f('10-12', 'Nossa Sra. Aparecida'),
+    f('10-28', 'Dia do Servidor Público', 'facultativo'),
+    f('11-02', 'Finados'), f('11-15', 'Proclamação da República'),
+    f('11-20', 'Consciência Negra'), f('12-24', 'Véspera de Natal', 'facultativo'), f('12-25', 'Natal'),
+    f('12-31', 'Véspera de Ano Novo', 'facultativo'),
+  ].sort((a, b) => a.data.localeCompare(b.data));
+}

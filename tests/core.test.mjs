@@ -98,3 +98,10 @@ test('datas: soma de dias, formatação e fuso de Brasília', () => {
 });
 
 test('escape de HTML', () => { assert.equal(C.esc('<img onerror="x">'), '&lt;img onerror=&quot;x&quot;&gt;'); });
+
+test('feriados: Páscoa e datas móveis corretas', () => {
+  assert.equal(C.pascoa(2026), '2026-04-05'); assert.equal(C.pascoa(2027), '2027-03-28');
+  const f = Object.fromEntries(C.feriadosDoAno(2026).map((x) => [x.nome, x.data]));
+  assert.equal(f['Sexta-feira Santa'], '2026-04-03'); assert.equal(f['Corpus Christi'], '2026-06-04');
+  assert.equal(f['Carnaval (terça)'], '2026-02-17'); assert.equal(f['Natal'], '2026-12-25');
+});

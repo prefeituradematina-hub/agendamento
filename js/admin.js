@@ -54,7 +54,7 @@ DB.aoMudarLogin(async (u) => {
 // ---------------------------------------------------------------------
 //  Abas
 // ---------------------------------------------------------------------
-$$('.aba').forEach((b) => (b.onclick = () => {
+$$('.aba[data-aba]').forEach((b) => (b.onclick = () => {
   $$('.aba').forEach((x) => x.classList.toggle('at', x === b));
   $$('#painel > section').forEach((s) => s.classList.toggle('oculto', s.id !== 'a-' + b.dataset.aba));
   ({ agend: buscar, vagas: carregarVagas, datas: carregarDatas, aud: carregarAud }[b.dataset.aba] || (() => {}))();
@@ -70,7 +70,7 @@ async function iniciarPainel() {
   $('#gSt').innerHTML = '<option value="">Todas</option>' + Object.entries(C.STATUS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   if (!cfg.configurada) {
     toast('Primeiro acesso: configure o SAC e o período do calendário na aba "Datas e configurações".');
-    $$('.aba')[3].click();
+    $$('.aba[data-aba]')[3].click();
   } else buscar();
 }
 
