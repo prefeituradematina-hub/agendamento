@@ -16,6 +16,7 @@
 
 <main id="main">
   <div id="avisoCfg" class="erro oculto"></div>
+  <div id="avisoGeral" class="aviso aviso-geral oculto" role="note"></div>
 
   <!-- ============ INÍCIO ============ -->
   <section id="vInicio">
@@ -89,7 +90,8 @@
         <div class="cal-nav"><button class="btn claro peq" id="mAnt" aria-label="Mês anterior">◀</button><strong id="mTit"></strong><button class="btn claro peq" id="mProx" aria-label="Próximo mês">▶</button></div>
         <div class="cal" id="cal" role="grid"></div>
         <div id="boxHoras" class="oculto">
-          <h2 style="margin-top:18px">Horários disponíveis em <span id="hData"></span></h2>
+          <h2 style="margin-top:18px">Horários em <span id="hData"></span></h2>
+          <div class="legenda-horas"><span><i class="v"></i>Disponível</span><span><i class="r"></i>Já agendado</span></div>
           <div id="horas" class="horas"></div>
           <div id="semVagas" class="aviso oculto">Não há horários livres nesta data. Escolha outro dia.</div>
         </div>
@@ -140,6 +142,7 @@
       <p><strong>Quem acessa:</strong> apenas servidores autorizados do SAC. O CPF nunca aparece completo em comprovantes, endereços (URLs) ou páginas públicas.</p>
       <p><strong>Retenção:</strong> os dados pessoais são apagados (anonimizados) após o prazo definido pela administração.</p>
       <p><strong>Seus direitos:</strong> pedir acesso, correção ou exclusão dos seus dados, no contato do SAC informado nesta página.</p>
+      <p id="pEncarregado" class="oculto"></p>
       <div class="acoes"><button class="btn" data-voltar>Voltar</button></div>
     </div>
   </section>

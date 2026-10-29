@@ -70,7 +70,8 @@ await p.click('#bIni'); await preencher('11144477735', 'João Pedro Lima');
 if (seg.slice(0, 7) > hoje.slice(0, 7)) await p.click('#mProx');
 await p.locator('#cal .dia:not([disabled]):not(.vazio)').filter({ hasText: new RegExp('^' + dia + '$') }).first().click();
 await p.waitForSelector('.hora');
-ok('horário ocupado (09h15) não aparece mais para o próximo cidadão', !(await p.locator('.hora').allTextContents()).includes('09h15') && (await p.locator('.hora').count()) === 19);
+await p.screenshot({ path: '/tmp/claude-0/-home-claude/4502446a-0fc9-5dc1-a475-42bb68f62370/scratchpad/horas.png' });
+ok('horário ocupado (09h15) aparece em vermelho e desabilitado; 19 livres em verde', (await p.locator('.hora.ocupado[disabled]', { hasText: '09h15' }).count()) === 1 && (await p.locator('.hora.livre:not([disabled])').count()) === 19 && (await p.locator('.hora').count()) === 20);
 // simula corrida: ocupa 10h00 por baixo dos panos depois de a tela já ter listado
 await p.locator('.hora', { hasText: '10h00' }).click(); await p.click('#c2');
 await p.evaluate((s) => globalThis.__store.set(`vagas/${s}_10:00`, { data: s, hora: '10:00', ref: 'x' }), seg);
@@ -126,9 +127,28 @@ await a.click('[data-aba=vagas]'); await a.fill('#vFim', C.somarDias(hoje, 14));
 await a.waitForSelector('#vTb tr'); const linha = (await a.locator('#vTb tr', { hasText: C.formatarData(seg) }).first().textContent());
 ok('controle de vagas: "19 de 20" disponíveis (1 ocupada, concluída)', linha.includes('19 de 20'), linha.replace(/\s+/g, ' ').slice(0, 90));
 await a.screenshot({ path: '/tmp/claude-0/-home-claude/4502446a-0fc9-5dc1-a475-42bb68f62370/scratchpad/admin-vagas.png' });
-// bloquear data
-await a.click('[data-aba=datas]'); await a.fill('#bIni', C.somarDias(seg, 7)); await a.fill('#bMot', 'Feriado teste'); a.on('dialog', (d) => d.accept()); await a.click('#bForm button');
-await a.waitForSelector('#bTb tr td:nth-child(2)'); ok('bloqueio de data aparece na lista', (await a.textContent('#bTb')).includes('Feriado teste'));
+a.on('dialog', (d) => d.accept());
+// configurações: logo, cor, aviso
+await a.click('[data-aba=datas]'); await a.waitForSelector('#cNomeSAC');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAEklEQVR4nGPg9p/zHx9mGBkKADSofUGtjP6tAAAAAElFTkSuQmCC', 'base64');
+await a.setInputFiles('#logoArq', { name: 'logo.png', mimeType: 'image/png', buffer: png });
+await a.waitForSelector('#logoPrev img'); ok('envio de logo mostra a prévia e o cabeçalho do painel', (await a.locator('.topo .brasao img').count()) === 1);
+await a.setInputFiles('#logoArq', { name: 'x.gif', mimeType: 'image/gif', buffer: png });
+await a.waitForSelector('.toast.erro'); ok('formato inválido (GIF) é recusado', (await a.textContent('#toast')).includes('PNG, JPG'));
+await a.fill('#cNomeSAC', 'SAC Matina'); await a.fill('#cMun', 'Matina'); await a.fill('#cEnd', 'Rua Nova, 10'); await a.fill('#cAviso', 'Atendimento suspenso dia 15');
+await a.fill('#cEnc', 'Fulano - lgpd@matina.ba.gov.br'); await a.fill('#cCorTxt', '#157347'); await a.dispatchEvent('#cCorTxt', 'input');
+await a.fill('#cCorTxt', 'verde'); await a.click('#cSalvar'); ok('cor inválida é recusada', (await a.textContent('#cErro')).includes('Cor inválida'));
+await a.fill('#cCorTxt', '#157347'); await a.click('#cSalvar'); await a.waitForFunction(() => document.querySelector('#toast').textContent.includes('salvas'));
+const salvo = await a.evaluate(() => globalThis.__store.get('config/geral'));
+ok('salva configurações sem apagar período nem logo', salvo.nomeSAC === 'SAC Matina' && salvo.corPrincipal === '#157347' && !!salvo.abertura && !!salvo.fechamento && salvo.logo.startsWith('data:image/'));
+// o site do cidadão passa a mostrar logo, cor e aviso
+const c2 = await pagina(mobile); await c2.addInitScript((c) => { (globalThis.__store ||= new Map()).set('config/geral', c); }, salvo);
+await c2.goto(base + '/index.html'); await c2.waitForSelector('#avisoGeral:not(.oculto)');
+ok('site do cidadão mostra logo, aviso e a cor escolhida', (await c2.locator('.topo .brasao img').count()) === 1 && (await c2.textContent('#avisoGeral')).includes('suspenso') && (await c2.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--azul').trim())) === '#157347');
+ok('título e nome refletem a configuração', (await c2.textContent('#tNome')).includes('SAC Matina'));
+await c2.click('#lkPriv'); ok('encarregado de dados aparece na política de privacidade', (await c2.textContent('#pEncarregado')).includes('lgpd@matina'));
+ok('sem erros de JavaScript (site com logo)', c2.erros.length === 0, c2.erros.join('|'));
+await a.click('[data-aba=datas]'); await a.click('#logoRemover'); await a.waitForFunction(() => !document.querySelector('#logoPrev img')); ok('remover logo volta ao padrão', true);
 await a.click('[data-aba=aud]'); await a.waitForSelector('#auTb tr'); ok('auditoria registra as operações', (await a.locator('#auTb tr').count()) >= 4);
 await a.click('#bSair'); await a.waitForSelector('#login:not(.oculto)'); ok('sair volta ao login', true);
 ok('sem erros de JavaScript no painel', a.erros.length === 0, a.erros.join(' | '));

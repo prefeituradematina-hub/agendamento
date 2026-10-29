@@ -1,6 +1,7 @@
 import * as C from './core.js';
 import * as DB from './firebase.js';
 import { htmlComprovante, linkEmail } from './comprovante.js';
+import { aplicarMarca } from './marca.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -35,6 +36,10 @@ async function iniciar() {
   }
   try {
     cfg = await DB.lerConfig();
+    aplicarMarca(cfg);
+    document.title = `Agendamento da CIN – ${cfg.nomeSAC}`;
+    if (cfg.aviso) { const a = $('#avisoGeral'); a.textContent = cfg.aviso; a.classList.remove('oculto'); }
+    if (cfg.encarregado) { const e = $('#pEncarregado'); e.textContent = `Encarregado pelo tratamento de dados: ${cfg.encarregado}`; e.classList.remove('oculto'); }
     $('#tNome').firstChild.textContent = cfg.nomeSAC;
     $('#tMun').textContent = `${cfg.municipio} — Agendamento da Carteira de Identidade Nacional (CIN)`;
     $('#infoLocal').innerHTML = `<strong>${C.esc(cfg.local)}</strong><br>${C.esc(cfg.endereco)}`
@@ -129,7 +134,9 @@ async function montarCalendario() {
 $('#mAnt').onclick = () => { est.mes = C.somarDias(`${est.mes}-01`, -1).slice(0, 7); montarCalendario(); };
 $('#mProx').onclick = () => { est.mes = C.somarDias(`${est.mes}-28`, 8).slice(0, 7); montarCalendario(); };
 
+let tokenDia = 0;
 async function escolherData(d) {
+  const meu = ++tokenDia;
   est.data = d; est.hora = ''; $('#c2').disabled = true; $('#e2').textContent = '';
   $$('#cal .dia').forEach((b) => b.classList.remove('sel'));
   [...$$('#cal .dia:not(.vazio)')].find((b) => b.getAttribute('aria-label').startsWith(C.formatarDataLonga(d)))?.classList.add('sel');
@@ -139,17 +146,26 @@ async function escolherData(d) {
   $('#semVagas').classList.add('oculto');
   try {
     const ocup = await DB.horariosOcupados(d);
+    if (meu !== tokenDia) return; // o cidadão já escolheu outro dia
     const livres = C.horariosLivres(d, ocup, ctx());
     box.innerHTML = '';
-    // Só aparecem horários DISPONÍVEIS
-    for (const h of livres) {
+    // Livres em verde (clicáveis) e já agendados em vermelho (bloqueados)
+    const livresSet = new Set(livres);
+    for (const h of C.horariosPossiveis(d, ctx().hoje, ctx().agora)) {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'hora'; b.textContent = h.replace(':', 'h');
-      b.onclick = () => { est.hora = h; $$('.hora').forEach((x) => x.classList.remove('sel')); b.classList.add('sel'); $('#c2').disabled = false; };
+      b.type = 'button'; b.textContent = h.replace(':', 'h');
+      if (livresSet.has(h)) {
+        b.className = 'hora livre'; b.setAttribute('aria-label', `${h.replace(':', 'h')} — disponível`);
+        b.onclick = () => { est.hora = h; $$('.hora').forEach((x) => x.classList.remove('sel')); b.classList.add('sel'); $('#c2').disabled = false; };
+      } else {
+        b.className = 'hora ocupado'; b.disabled = true; b.title = 'Horário já agendado';
+        b.setAttribute('aria-label', `${h.replace(':', 'h')} — já agendado`);
+      }
       box.appendChild(b);
     }
     $('#semVagas').classList.toggle('oculto', livres.length > 0);
   } catch (e) {
+    if (meu !== tokenDia) return;
     console.error(e); box.innerHTML = '';
     $('#e2').textContent = 'Não foi possível carregar os horários. Tente novamente.';
   }
@@ -185,13 +201,14 @@ $('#c3').onclick = async () => {
   try {
     const r = await DB.agendar({ ...est.dados, data: est.data, hora: est.hora });
     mostrarComprovante(r, true);
+    $('#f1').reset(); est.dados = null; est.data = ''; est.hora = ''; // não deixa dados pessoais no formulário (computador compartilhado)
   } catch (e) {
     console.error(e);
     if (e instanceof DB.HorarioOcupadoError) {
       e3.textContent = 'Este horário acabou de ser ocupado por outra pessoa. Escolha outro horário.';
       passo(2); await escolherData(est.data); $('#e2').textContent = e3.textContent;
-    } else if (e.code === 'cpf-ja-agendado') {
-      e3.textContent = 'Já existe um agendamento ativo para este CPF. Use "Consultar ou cancelar agendamento" na página inicial.';
+    } else if (e.code === 'recusado') {
+      e3.textContent = 'O agendamento não foi aceito. Possíveis motivos: já existe um agendamento ativo para este CPF (use "Consultar ou cancelar" na página inicial) ou a data não está mais disponível. Nada foi reservado.';
       e3.classList.remove('oculto');
     } else {
       e3.textContent = 'Não foi possível confirmar o agendamento. Nada foi reservado. Verifique sua internet e tente novamente.';

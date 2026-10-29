@@ -1,5 +1,6 @@
 import * as C from './core.js';
 import * as DB from './firebase.js';
+import { aplicarMarca, logoutOcioso } from './marca.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -24,10 +25,12 @@ $('#fLogin').addEventListener('submit', async (e) => {
   catch (x) { er.textContent = x.code === 'auth/too-many-requests' ? 'Muitas tentativas. Aguarde alguns minutos.' : 'E-mail ou senha incorretos.'; er.classList.remove('oculto'); }
 });
 $('#bSair').onclick = () => DB.sair();
+DB.lerConfig().then((c) => aplicarMarca(c)).catch(() => {});
 DB.aoMudarLogin(async (u) => {
   if (!u) { $('#login').classList.remove('oculto'); $('#painel').classList.add('oculto'); $('#quem').classList.add('oculto'); return; }
   if (!(await DB.ehAdmin(u.uid))) { await DB.sair(); $('#eLogin').textContent = 'Este usuário não tem permissão de administrador.'; $('#eLogin').classList.remove('oculto'); return; }
   $('#login').classList.add('oculto'); $('#painel').classList.remove('oculto'); $('#quem').classList.remove('oculto'); $('#quemEmail').textContent = u.email;
+  logoutOcioso(() => DB.sair(), 30);
   await iniciar();
 });
 
@@ -176,7 +179,7 @@ $('#pSalvar').onclick = async () => {
   const ab = $('#pAb').value; const fe = $('#pFe').value; const er = $('#pErro'); er.classList.add('oculto');
   if (!C.dataValida(ab) || !C.dataValida(fe) || fe < ab) { er.textContent = 'Informe um período válido (a data final não pode ser anterior à inicial).'; er.classList.remove('oculto'); return; }
   const antes = est.cfg.configurada;
-  try { await DB.salvarPeriodo(ab, fe); est.cfg = { ...est.cfg, abertura: ab, fechamento: fe, configurada: true }; toast(antes ? 'Período salvo.' : 'Período salvo. Agora complete nome e endereço em Painel › Datas e configurações.'); desenhar(); }
+  try { await DB.salvarPeriodo(ab, fe); est.cfg = { ...est.cfg, abertura: ab, fechamento: fe, configurada: true }; toast(antes ? 'Período salvo.' : 'Período salvo. Agora complete nome e endereço em Painel › Configurações.'); desenhar(); }
   catch (e) { console.error(e); toast(msgErro(e), true); }
 };
 

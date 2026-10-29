@@ -116,3 +116,15 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .fx-periodo>div{min-width:0}.fx-periodo input{width:100%}
 .fx-periodo{display:grid;gap:10px;grid-template-columns:1fr 1fr}
 .fx-rapidos{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
+/* configurações */
+.cfg-grid{display:grid;gap:14px;grid-template-columns:1fr;max-width:980px}
+@media(min-width:860px){.cfg-grid{grid-template-columns:1fr 1fr}.cfg-periodo,.cfg-salvar{grid-column:1/-1}}
+.cfg-salvar{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.logo-box{display:flex;gap:14px;align-items:center;margin-bottom:6px}
+.logo-prev{width:72px;height:72px;font-size:.9rem;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--mute);flex:none}
+.logo-prev.com-logo{padding:6px}
+.cor-box{display:flex;gap:8px;align-items:center}
+.cor-box input[type=color]{width:46px;padding:2px;min-height:38px;flex:none}
+.cor-box input:not([type=color]){max-width:130px}
+.topo .brasao.com-logo{background:#fff;border:1px solid var(--line);padding:2px}

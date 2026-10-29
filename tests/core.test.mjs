@@ -105,3 +105,13 @@ test('feriados: Páscoa e datas móveis corretas', () => {
   assert.equal(f['Sexta-feira Santa'], '2026-04-03'); assert.equal(f['Corpus Christi'], '2026-06-04');
   assert.equal(f['Carnaval (terça)'], '2026-02-17'); assert.equal(f['Natal'], '2026-12-25');
 });
+
+test('identidade visual: cor, logo e fuso do aparelho', () => {
+  assert.ok(C.corValida('#0b4f9c')); assert.ok(!C.corValida('azul')); assert.ok(!C.corValida('#fff')); assert.ok(!C.corValida('red;background:url(x)'));
+  assert.match(C.escurecer('#ffffff'), /^#[0-9a-f]{6}$/); assert.equal(C.escurecer('lixo'), C.escurecer(C.COR_PADRAO));
+  assert.ok(C.logoValida('data:image/png;base64,iVBORw0KGgo=')); assert.ok(!C.logoValida('https://x.com/a.png'));
+  assert.ok(!C.logoValida('data:image/svg+xml;base64,PHN2Zz4=')); assert.ok(!C.logoValida('javascript:alert(1)'));
+  assert.ok(!C.logoValida('data:image/png;base64,' + 'A'.repeat(300001)));
+  // meia-noite em Brasília não vira "24:00"
+  assert.equal(C.horaAgoraBR(new Date('2026-11-10T03:05:00Z')), '00:05'); assert.equal(C.hojeBR(new Date('2026-11-10T03:05:00Z')), '2026-11-10');
+});

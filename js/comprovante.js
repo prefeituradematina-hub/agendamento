@@ -9,6 +9,7 @@ export function htmlComprovante(comp, cfg) {
   return `
   <div class="comprovante" id="comprovante">
     ${cancel ? '<div class="cancelado-marca">CANCELADO</div>' : ''}
+    ${C.logoValida(cfg.logo) ? `<img class="logo-comp" src="${cfg.logo}" alt="">` : ''}
     <h2>Comprovante de agendamento</h2>
     <div>${C.esc(cfg.nomeSAC)} — ${C.esc(cfg.municipio)}</div>
     <div class="prot">${C.esc(comp.protocolo)}</div>

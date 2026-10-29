@@ -14,7 +14,7 @@ import {
 import { firebaseConfig, appCheckSiteKey, usarEmulador } from '../firebase-config.js';
 import * as C from './core.js';
 
-export const configurado = !String(firebaseConfig.apiKey).startsWith('COLE_AQUI');
+export const configurado = !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.apiKey)) && !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.appId));
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
@@ -39,7 +39,10 @@ export const CONFIG_PADRAO = {
   email: '',
   abertura: '',
   fechamento: '',
-  cancelarAteVespera: true,
+  aviso: '',
+  encarregado: '',
+  corPrincipal: '',
+  logo: '',
 };
 
 // ---------------------------------------------------------------------
@@ -101,8 +104,8 @@ export async function agendar(d) {
     if (e.code === 'permission-denied' || e.code === 'already-exists' || e.code === 'aborted') {
       const ocupados = await horariosOcupados(d.data).catch(() => new Set());
       if (ocupados.has(d.hora)) throw new HorarioOcupadoError('Este horário acabou de ser ocupado.');
-      const cp = await getDoc(doc(db, 'cpfAtivos', cpfKey)).catch(() => null);
-      if (cp && cp.exists()) { const x = new Error('CPF_JA_AGENDADO'); x.code = 'cpf-ja-agendado'; throw x; }
+      // Não dá para o cidadão consultar "CPF já agendado" (privacidade): informamos os motivos possíveis.
+      const x = new Error('RECUSADO'); x.code = 'recusado'; throw x;
     }
     throw e;
   }
@@ -199,7 +202,8 @@ export async function adminCriar(d) {
     if (e.code === 'permission-denied' || e.code === 'already-exists') {
       const oc = await horariosOcupados(d.data).catch(() => new Set());
       if (oc.has(d.hora)) throw new HorarioOcupadoError('Horário já ocupado.');
-      const x = new Error('CPF_JA_AGENDADO'); x.code = 'cpf-ja-agendado'; throw x;
+      const cp = await getDoc(doc(db, 'cpfAtivos', cpfKey)).catch(() => null);
+      if (cp && cp.exists()) { const x = new Error('CPF_JA_AGENDADO'); x.code = 'cpf-ja-agendado'; throw x; }
     }
     throw e;
   }
@@ -245,10 +249,18 @@ export async function adminMarcar(a, status) {
   await b.commit();
 }
 
-export async function salvarConfig(cfg) {
+/** Salva (mescla) os campos informados. Nunca apaga o período nem a logo se não vierem. */
+export async function salvarConfig(campos) {
   const b = writeBatch(db);
-  b.set(doc(db, 'config', 'geral'), cfg);
-  audit(b, 'salvar_config', '', `${cfg.abertura} a ${cfg.fechamento}`);
+  b.set(doc(db, 'config', 'geral'), campos, { merge: true });
+  audit(b, 'salvar_config', '', Object.keys(campos).filter((k) => k !== 'logo').join(', '));
+  await b.commit();
+}
+
+export async function salvarLogo(dataUrl) {
+  const b = writeBatch(db);
+  b.set(doc(db, 'config', 'geral'), { logo: dataUrl || '' }, { merge: true });
+  audit(b, dataUrl ? 'alterar_logo' : 'remover_logo', '', '');
   await b.commit();
 }
 

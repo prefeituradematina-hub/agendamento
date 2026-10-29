@@ -89,36 +89,50 @@
     </div>
   </section>
 
-  <!-- DATAS / CONFIG -->
+  <!-- CONFIGURAÇÕES -->
   <section id="a-datas" class="oculto">
-    <div class="grid2">
+    <form id="cForm" class="cfg-grid">
       <div class="card">
-        <h2>Configurações do serviço</h2>
-        <form id="cForm">
-          <label for="cNomeSAC">Nome do SAC</label><input id="cNomeSAC" maxlength="100">
-          <label for="cMun">Município</label><input id="cMun" maxlength="80">
-          <label for="cLocal">Local do atendimento</label><input id="cLocal" maxlength="100">
-          <label for="cEnd">Endereço</label><input id="cEnd" maxlength="200">
-          <label for="cTel">Telefone de contato</label><input id="cTel" maxlength="30">
-          <label for="cMail">E-mail de contato</label><input id="cMail" maxlength="120">
-          <label for="cAb">Calendário aberto a partir de</label><input id="cAb" type="date">
-          <label for="cFe">Calendário aberto até</label><input id="cFe" type="date">
-          <div id="cErro" class="erro oculto"></div>
-          <div class="acoes"><button class="btn">Salvar configurações</button></div>
-        </form>
+        <h2>Identidade</h2>
+        <label>Logo do SAC / prefeitura</label>
+        <div class="logo-box">
+          <div class="brasao logo-prev" id="logoPrev" aria-hidden="true">SAC</div>
+          <div>
+            <input type="file" id="logoArq" accept="image/png,image/jpeg,image/webp" class="oculto">
+            <button type="button" class="btn claro peq" id="logoEscolher">Enviar imagem</button>
+            <button type="button" class="btn claro peq" id="logoRemover">Remover</button>
+            <div class="dica" id="logoInfo">PNG, JPG ou WebP. É reduzida automaticamente.</div>
+          </div>
+        </div>
+        <label for="cNomeSAC">Nome do SAC</label><input id="cNomeSAC" maxlength="100">
+        <label for="cMun">Município</label><input id="cMun" maxlength="80">
+        <label for="cCor">Cor principal do site do cidadão</label>
+        <div class="cor-box"><input type="color" id="cCor" value="#0b4f9c"><input id="cCorTxt" maxlength="7" placeholder="#0b4f9c"><button type="button" class="btn claro peq" id="cCorPadrao">Padrão</button></div>
       </div>
+
       <div class="card">
-        <h2>Bloquear datas</h2>
-        <p class="dica">Feriados, pontos facultativos, férias, manutenção. Datas bloqueadas não recebem novos agendamentos.</p>
-        <form id="bForm" class="barra">
-          <div><label for="bIni">De</label><input type="date" id="bIni" required></div>
-          <div><label for="bFim">Até (opcional)</label><input type="date" id="bFim"></div>
-          <div style="flex:2 1 160px"><label for="bMot">Motivo</label><input id="bMot" maxlength="80" placeholder="Ex.: Feriado"></div>
-          <div style="flex:0 0 auto"><button class="btn">Bloquear</button></div>
-        </form>
-        <div class="tabela-wrap"><table><thead><tr><th>Data</th><th>Motivo</th><th></th></tr></thead><tbody id="bTb"></tbody></table></div>
+        <h2>Atendimento</h2>
+        <label for="cLocal">Local do atendimento</label><input id="cLocal" maxlength="100" placeholder="Ex.: Prefeitura Municipal – SAC">
+        <label for="cEnd">Endereço</label><input id="cEnd" maxlength="200">
+        <label for="cTel">Telefone de contato</label><input id="cTel" maxlength="30">
+        <label for="cMail">E-mail de contato</label><input id="cMail" maxlength="120" type="email">
+        <label for="cAviso">Aviso na página inicial <span class="dica">(opcional — ex.: "Atendimento suspenso dia 15")</span></label>
+        <textarea id="cAviso" rows="3" maxlength="400"></textarea>
+        <label for="cEnc">Encarregado de dados (LGPD) <span class="dica">(opcional — nome e contato)</span></label>
+        <input id="cEnc" maxlength="160">
       </div>
-    </div>
+
+      <div class="card cfg-periodo">
+        <h2>Período e dias de funcionamento</h2>
+        <p class="dica" style="margin:0 0 8px">Calendário aberto ao público: <strong id="cPeriodo">—</strong></p>
+        <a class="btn claro" href="funcionamento.html">Gerenciar dias e período</a>
+      </div>
+
+      <div class="cfg-salvar">
+        <div id="cErro" class="erro oculto"></div>
+        <button class="btn" id="cSalvar">Salvar configurações</button>
+      </div>
+    </form>
   </section>
 
   <!-- RELATÓRIOS -->

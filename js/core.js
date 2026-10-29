@@ -41,16 +41,20 @@ export const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-
 // ---------------------------------------------------------------------
 //  Datas (sempre texto AAAA-MM-DD, fuso de Brasília)
 // ---------------------------------------------------------------------
+function partesBR(now) {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: FUSO, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const o = {}; for (const p of f.formatToParts(now)) o[p.type] = p.value;
+  if (o.hour === '24') o.hour = '00';
+  return o;
+}
+
+/** Data de hoje no fuso de Brasília (AAAA-MM-DD), independente do relógio/fuso do aparelho. */
 export function hojeBR(now = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: FUSO, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(now);
+  const o = partesBR(now); return `${o.year}-${o.month}-${o.day}`;
 }
 
 export function horaAgoraBR(now = new Date()) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: FUSO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).format(now);
+  const o = partesBR(now); return `${o.hour}:${o.minute}`;
 }
 
 export function dataValida(s) {
@@ -329,3 +333,20 @@ export function feriadosDoAno(ano) {
     f('12-31', 'Véspera de Ano Novo', 'facultativo'),
   ].sort((a, b) => a.data.localeCompare(b.data));
 }
+
+// ---------------------------------------------------------------------
+//  Identidade visual
+// ---------------------------------------------------------------------
+export const COR_PADRAO = '#0b4f9c';
+export const corValida = (c) => /^#[0-9a-fA-F]{6}$/.test(String(c ?? ''));
+
+/** Escurece uma cor #rrggbb (fator 0..1) — usada no degradê do topo. */
+export function escurecer(hex, f = 0.35) {
+  if (!corValida(hex)) hex = COR_PADRAO;
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v * (1 - f)));
+  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+/** Só aceitamos imagens embutidas (data URL) de tipos seguros, e de tamanho razoável. */
+export const logoValida = (u) => typeof u === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(u) && u.length <= 300000;

@@ -1,6 +1,7 @@
 import * as C from './core.js';
 import * as DB from './firebase.js';
 import { htmlComprovante } from './comprovante.js';
+import { aplicarMarca, processarLogo, logoutOcioso } from './marca.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -40,6 +41,7 @@ $('#fLogin').addEventListener('submit', async (e) => {
 });
 $('#bSair').onclick = () => DB.sair();
 
+DB.lerConfig().then((c) => { cfg = c; aplicarMarca(c); }).catch(() => {});
 DB.aoMudarLogin(async (u) => {
   if (!u) { $('#login').classList.remove('oculto'); $('#painel').classList.add('oculto'); $('#quem').classList.add('oculto'); return; }
   if (!(await DB.ehAdmin(u.uid))) {
@@ -48,6 +50,7 @@ DB.aoMudarLogin(async (u) => {
   }
   $('#login').classList.add('oculto'); $('#painel').classList.remove('oculto'); $('#quem').classList.remove('oculto');
   $('#quemEmail').textContent = u.email; $('#lSenha').value = '';
+  logoutOcioso(() => DB.sair(), 30);
   await iniciarPainel();
 });
 
@@ -61,7 +64,7 @@ $$('.aba[data-aba]').forEach((b) => (b.onclick = () => {
 }));
 
 async function iniciarPainel() {
-  cfg = await DB.lerConfig();
+  cfg = await DB.lerConfig(); aplicarMarca(cfg);
   const hoje = C.hojeBR();
   $('#gIni').value = C.somarDias(hoje, -7); $('#gFim').value = C.somarDias(hoje, 30);
   $('#vIni').value = hoje; $('#vFim').value = C.somarDias(hoje, 30);
@@ -99,7 +102,7 @@ async function buscar() {
     linhas = r.sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
     $('#gTb').innerHTML = linhas.map((a) => `<tr>
       <td class="mono">${C.esc(a.protocolo)}</td><td>${C.esc(a.nome)}</td><td class="mono">${C.esc(a.cpfMasc)}</td>
-      <td>${C.esc(C.formatarTelefone(a.telefone))}</td><td>${C.formatarData(a.data)}</td><td>${C.esc(a.hora)}</td>
+      <td>${C.esc(C.formatarTelefone(a.telefone))}</td><td>${C.esc(C.formatarData(a.data))}</td><td>${C.esc(a.hora)}</td>
       <td>${tag(a.status)}</td><td><button class="btn peq" data-ref="${C.esc(a.ref)}">Abrir</button></td></tr>`).join('')
       || '<tr><td colspan="8">Nenhum agendamento encontrado.</td></tr>';
     $$('#gTb [data-ref]').forEach((b) => (b.onclick = () => detalhe(linhas.find((x) => x.ref === b.dataset.ref))));
@@ -151,7 +154,7 @@ async function acao(a, qual) {
       $('#xOk').onclick = async () => { try { await DB.adminCancelar(a, $('#xMot').value.trim()); toast('Agendamento cancelado. Vaga liberada.'); fecharDlg(); buscar(); } catch (e) { toast(msgErro(e), true); } };
     }
     if (qual === 'remarcar') {
-      ex.innerHTML = `<label>Nova data</label><input type="date" id="xData" value="${a.data}"><label>Novo horário</label><select id="xHora"></select><div class="acoes"><button class="btn peq" id="xOk">Salvar</button></div>`;
+      ex.innerHTML = `<label>Nova data</label><input type="date" id="xData" value="${C.esc(a.data)}"><label>Novo horário</label><select id="xHora"></select><div class="acoes"><button class="btn peq" id="xOk">Salvar</button></div>`;
       const carregar = () => preencherHoras('#xHora', $('#xData').value, a);
       $('#xData').onchange = carregar; carregar();
       $('#xOk').onclick = async () => {
@@ -233,33 +236,61 @@ $('#nForm').addEventListener('submit', async (ev) => {
 // ---------------------------------------------------------------------
 //  Datas e configurações
 // ---------------------------------------------------------------------
+let logoAtual = '';
+function mostrarLogo(url) {
+  logoAtual = url || '';
+  aplicarMarca({ ...cfg, logo: logoAtual });
+  $('#logoInfo').textContent = logoAtual ? `Logo em uso (${Math.round(logoAtual.length / 1365)} KB).` : 'PNG, JPG ou WebP. É reduzida automaticamente.';
+}
+
 async function carregarDatas() {
   cfg = await DB.lerConfig();
   $('#cNomeSAC').value = cfg.nomeSAC; $('#cMun').value = cfg.municipio; $('#cLocal').value = cfg.local; $('#cEnd').value = cfg.endereco;
-  $('#cTel').value = cfg.telefone; $('#cMail').value = cfg.email; $('#cAb').value = cfg.abertura; $('#cFe').value = cfg.fechamento;
-  const bl = await DB.listarBloqueios();
-  $('#bTb').innerHTML = bl.map((b) => `<tr><td>${C.formatarData(b.id)} <span class="dica">${C.DIAS_SEMANA[C.diaDaSemana(b.id)]}</span></td><td>${C.esc(b.motivo)}</td><td><button class="btn peq claro" data-d="${b.id}">Remover</button></td></tr>`).join('') || '<tr><td colspan="3">Nenhuma data bloqueada.</td></tr>';
-  $$('#bTb [data-d]').forEach((b) => (b.onclick = async () => { await DB.desbloquearData(b.dataset.d); toast('Data liberada.'); carregarDatas(); }));
+  $('#cTel').value = cfg.telefone; $('#cMail').value = cfg.email; $('#cAviso').value = cfg.aviso || ''; $('#cEnc').value = cfg.encarregado || '';
+  const cor = C.corValida(cfg.corPrincipal) ? cfg.corPrincipal : C.COR_PADRAO;
+  $('#cCor').value = cor; $('#cCorTxt').value = cor;
+  $('#cPeriodo').textContent = `${C.formatarData(cfg.abertura)} a ${C.formatarData(cfg.fechamento)}`;
+  mostrarLogo(cfg.logo);
 }
+
+// logo
+$('#logoEscolher').onclick = () => $('#logoArq').click();
+$('#logoArq').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const url = await processarLogo(f);
+    await DB.salvarLogo(url); cfg.logo = url; mostrarLogo(url); toast('Logo salva.');
+  } catch (x) { console.error(x); toast(x.message || msgErro(x), true); }
+};
+$('#logoRemover').onclick = async () => {
+  if (!logoAtual) return toast('Não há logo para remover.', true);
+  if (!confirm('Remover a logo?')) return;
+  try { await DB.salvarLogo(''); cfg.logo = ''; mostrarLogo(''); toast('Logo removida.'); } catch (x) { toast(msgErro(x), true); }
+};
+
+// cor
+$('#cCor').oninput = () => { $('#cCorTxt').value = $('#cCor').value; };
+$('#cCorTxt').oninput = () => { if (C.corValida($('#cCorTxt').value)) $('#cCor').value = $('#cCorTxt').value; };
+$('#cCorPadrao').onclick = () => { $('#cCor').value = C.COR_PADRAO; $('#cCorTxt').value = C.COR_PADRAO; };
+
 $('#cForm').addEventListener('submit', async (e) => {
   e.preventDefault(); const er = $('#cErro'); er.classList.add('oculto');
-  const c = { nomeSAC: $('#cNomeSAC').value.trim(), municipio: $('#cMun').value.trim(), local: $('#cLocal').value.trim(), endereco: $('#cEnd').value.trim(), telefone: $('#cTel').value.trim(), email: $('#cMail').value.trim(), abertura: $('#cAb').value, fechamento: $('#cFe').value };
-  if (!c.nomeSAC || !c.endereco || !C.dataValida(c.abertura) || !C.dataValida(c.fechamento) || c.fechamento < c.abertura) {
-    er.textContent = 'Preencha nome, endereço e um período válido (fim depois do início).'; er.classList.remove('oculto'); return;
-  }
-  try { await DB.salvarConfig(c); cfg = { ...cfg, ...c, configurada: true }; toast('Configurações salvas.'); } catch (x) { toast(msgErro(x), true); }
-});
-$('#bForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const ini = $('#bIni').value; const fim = $('#bFim').value || ini; const mot = $('#bMot').value.trim();
-  const dias = C.intervaloDatas(ini, fim);
-  if (!dias.length) return toast('Período inválido.', true);
-  try {
-    const ja = (await DB.listarAgendamentos(ini, fim)).filter((a) => ['agendado', 'presente'].includes(a.status));
-    if (ja.length && !confirm(`Já existem ${ja.length} agendamento(s) ativo(s) nesse período. Eles NÃO serão cancelados automaticamente — remarque ou cancele depois. Bloquear mesmo assim?`)) return;
-    for (const d of dias) await DB.bloquearData(d, mot);
-    toast(`${dias.length} data(s) bloqueada(s).`); $('#bForm').reset(); carregarDatas();
-  } catch (x) { toast(msgErro(x), true); }
+  const c = {
+    nomeSAC: $('#cNomeSAC').value.trim(), municipio: $('#cMun').value.trim(), local: $('#cLocal').value.trim(), endereco: $('#cEnd').value.trim(),
+    telefone: $('#cTel').value.trim(), email: $('#cMail').value.trim(), aviso: $('#cAviso').value.trim(), encarregado: $('#cEnc').value.trim(),
+    corPrincipal: $('#cCorTxt').value.trim() || C.COR_PADRAO,
+  };
+  const erros = [];
+  if (!c.nomeSAC) erros.push('Informe o nome do SAC.');
+  if (!c.municipio) erros.push('Informe o município.');
+  if (!c.endereco) erros.push('Informe o endereço.');
+  if (!C.corValida(c.corPrincipal)) erros.push('Cor inválida (use o formato #0b4f9c).');
+  if (!C.validarEmail(c.email)) erros.push('E-mail de contato inválido.');
+  if (erros.length) { er.textContent = erros.join(' '); er.classList.remove('oculto'); return; }
+  // Garante que o período exista no documento (as regras do Firestore dependem dele)
+  c.abertura = cfg.abertura; c.fechamento = cfg.fechamento;
+  try { await DB.salvarConfig(c); cfg = { ...cfg, ...c, configurada: true }; aplicarMarca(cfg); toast('Configurações salvas.'); }
+  catch (x) { console.error(x); toast(msgErro(x), true); }
 });
 
 // ---------------------------------------------------------------------

@@ -34,7 +34,7 @@ Sem este passo o sistema **não funciona** e, pior, o banco fica sem as proteç�
 
 1. **Authentication → Usuários → Adicionar usuário**: informe e-mail e uma senha forte. Copie o **UID** do usuário criado.
 2. **Firestore → Iniciar coleção** `admins` → ID do documento = **o UID copiado** → crie um campo qualquer (ex.: `nome` = `Fulano`).
-3. Acesse `admin.html`, entre e abra **Datas e configurações**: preencha nome do SAC, município, endereço, telefone e o **período em que o calendário fica aberto**. Clique em *Salvar*. **Sem salvar a configuração, o cidadão não consegue agendar.**
+3. Acesse `admin.html`, entre e abra **Configurações**: preencha nome, município e endereço (e logo, se quiser) e clique em *Salvar*. Depois abra **Dias de funcionamento** e salve o **período em que o calendário fica aberto**. **Sem salvar esses dois passos, o cidadão não consegue agendar.**
 
 Para outros servidores: repita (usuário + documento em `admins`). Para remover acesso: apague o documento em `admins`.
 
@@ -62,7 +62,8 @@ O painel permite cancelar agendamentos suspeitos (libera a vaga na hora).
 - **Controle de vagas**: por dia, "vagas disponíveis: X de 20", concluídos, cancelamentos, faltas.
 - **Novo agendamento**: cadastro manual (mesmas travas de horário e CPF).
 - **Dias de funcionamento** (`funcionamento.html`, link no painel): calendário mensal com vagas por dia, bloquear/reabrir dias (Ctrl para vários, Shift para intervalo), período de agendamento (+30/60/90 dias) e sugestão de feriados nacionais (Carnaval, Corpus Christi e 2 de julho vêm desmarcados). Atendimento continua só de segunda a sexta (regra fixa do serviço, também nas regras do Firestore).
-- **Configurações**: nome do SAC, endereço e contatos.
+- **Configurações** (aba no painel): **logo** (enviada pelo painel, reduzida automaticamente e guardada no próprio Firestore, sem precisar do Firebase Storage), nome do SAC, município, **cor principal** do site, local, endereço, telefone, e-mail, **aviso na página inicial** (opcional) e **encarregado de dados LGPD** (opcional). Logo e cor aparecem no site do cidadão, no comprovante e no painel.
+- **Sessão**: o painel encerra o login sozinho após 30 minutos sem uso e ao fechar o navegador.
 - **Relatórios**: por dia ou mês, exportação em **PDF** e **Excel**.
 - **Auditoria**: quem fez o quê (somente inclusão, ninguém apaga).
 
