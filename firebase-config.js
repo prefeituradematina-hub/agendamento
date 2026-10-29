@@ -14,7 +14,7 @@
 // =====================================================================
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyC7SscZZ2uhic2JXaQYfmnvh5mRgwpk0y8",
+  apiKey: "AIzaSyCVA-CAQwB-Kk2FqMn9fSQcyFfet0qz7xs",
   authDomain: "agendamento-f33e8.firebaseapp.com",
   databaseURL: "https://agendamento-f33e8-default-rtdb.firebaseio.com",
   projectId: "agendamento-f33e8",
