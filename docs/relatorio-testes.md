@@ -10,6 +10,8 @@ Data: 28/10/2026. Ambiente: Node 22, Chromium (Playwright).
 
 ## Correções desta revisão
 
+- **"Confirmando…" sem fim (29/10):** a gravação usava um lote do Firestore, que fica numa fila do navegador quando o servidor não responde (a tela ficava esperando e a gravação podia acontecer escondida depois). Agora usa transação (falha na hora quando não há conexão), tempo limite de 20 s, verificação no servidor após o tempo limite, mensagem clara com o protocolo de referência e conexão por long-polling (funciona em redes/antivírus/bloqueadores que derrubam o canal padrão). Teste: `tests/ui/lento.mjs` (13/13).
+- **Calendário travando (29/10):** o calendário só era desenhado depois de uma consulta ao Firebase; com conexão lenta ou bloqueada a tela ficava em branco. Agora é desenhado na hora, as datas bloqueadas chegam em segundo plano, há tempo limite de 15 s com mensagem clara, o Firestore usa detecção automática de long-polling (redes/navegadores que bloqueiam o canal padrão) e uma configuração salva com formato errado não derruba mais a tela. Teste: `tests/ui/lento.mjs` (8/8).
 - Salvar configurações usava gravação completa e podia apagar período/logo → agora mescla campos.
 - Mensagem "CPF já agendado" nunca aparecia para o cidadão (leitura negada por privacidade) → mensagem com os motivos possíveis.
 - Mensagem do painel acusava "CPF duplicado" para qualquer recusa → agora confere de fato.

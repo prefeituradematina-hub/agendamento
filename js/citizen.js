@@ -52,7 +52,8 @@ async function iniciar() {
   } catch (e) {
     console.error(e);
     const a = $('#avisoCfg'); a.classList.remove('oculto');
-    a.textContent = 'Não foi possível carregar as informações agora. Verifique sua internet e tente de novo.';
+    a.innerHTML = 'Não foi possível carregar as informações agora. Verifique sua internet. <button class="btn peq claro" id="bTentar" type="button">Tentar de novo</button>';
+    $('#bTentar').onclick = () => location.reload();
   }
 }
 
@@ -108,11 +109,30 @@ function ctx() {
   return { hoje: C.hojeBR(), agora: C.horaAgoraBR(), abertura: cfg.abertura, fechamento: cfg.fechamento, bloqueios: new Set(bloqueios.keys()) };
 }
 
-async function montarCalendario() {
+/** Desenha o calendário NA HORA (sem esperar o Firebase) e depois busca os dias bloqueados em segundo plano. */
+function montarCalendario() {
   const [y, m] = est.mes.split('-').map(Number);
   $('#mTit').textContent = `${C.MESES[m - 1]} de ${y}`;
-  const ini = `${est.mes}-01`; const fim = C.somarDias(`${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`, -1);
-  try { const b = await DB.lerBloqueios(ini, fim); for (const [k, v] of b) bloqueios.set(k, v); } catch (e) { console.error(e); }
+  desenharCalendario();
+  const mes = est.mes; const ini = `${mes}-01`; const fim = C.ultimoDiaDoMes(mes);
+  const aviso = $('#calCarga'); aviso.textContent = 'Verificando datas bloqueadas…'; aviso.classList.remove('oculto');
+  DB.lerBloqueios(ini, fim).then((b) => {
+    let mudou = false;
+    for (const [k, v] of b) if (!bloqueios.has(k)) { bloqueios.set(k, v); mudou = true; }
+    aviso.classList.add('oculto');
+    if (mudou && mes === est.mes) {
+      if (est.data && bloqueios.has(est.data)) { est.data = ''; est.hora = ''; $('#boxHoras').classList.add('oculto'); $('#c2').disabled = true; }
+      desenharCalendario();
+    }
+  }).catch((e) => {
+    console.error(e);
+    if (mes === est.mes) aviso.textContent = 'Conexão lenta: não foi possível verificar datas bloqueadas agora. Você pode escolher a data; o sistema confere de novo ao confirmar.';
+  });
+}
+
+function desenharCalendario() {
+  const [y, m] = est.mes.split('-').map(Number);
+  const ini = `${est.mes}-01`; const fim = C.ultimoDiaDoMes(est.mes);
   const c = ctx();
   const box = $('#cal'); box.innerHTML = '';
   ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].forEach((x) => box.insertAdjacentHTML('beforeend', `<div class="sem">${x}</div>`));
@@ -198,6 +218,7 @@ $('#c3').onclick = async () => {
     e3.textContent = 'Esta data ou horário não está mais disponível. Escolha outro.'; e3.classList.remove('oculto'); return;
   }
   const btn = $('#c3'); setBusy(btn, true, 'Confirmando…');
+  const lento = setTimeout(() => { btn.innerHTML = '<span class="spin"></span> Ainda confirmando, aguarde…'; }, 8000);
   try {
     const r = await DB.agendar({ ...est.dados, data: est.data, hora: est.hora });
     mostrarComprovante(r, true);
@@ -207,14 +228,17 @@ $('#c3').onclick = async () => {
     if (e instanceof DB.HorarioOcupadoError) {
       e3.textContent = 'Este horário acabou de ser ocupado por outra pessoa. Escolha outro horário.';
       passo(2); await escolherData(est.data); $('#e2').textContent = e3.textContent;
+    } else if (e.code === 'incerto' || e.code === 'timeout' || e.code === 'unavailable') {
+      e3.innerHTML = `Não conseguimos confirmar o agendamento porque a internet ou o servidor não respondeu. <strong>Nada foi garantido.</strong> Aguarde um minuto, vá em "Consultar ou cancelar agendamento" na página inicial${e.protocolo ? ` (protocolo de referência: <strong>${C.esc(e.protocolo)}</strong>)` : ''} para ver se o horário foi registrado e, se não foi, tente de novo.`;
+      e3.classList.remove('oculto');
     } else if (e.code === 'recusado') {
       e3.textContent = 'O agendamento não foi aceito. Possíveis motivos: já existe um agendamento ativo para este CPF (use "Consultar ou cancelar" na página inicial) ou a data não está mais disponível. Nada foi reservado.';
       e3.classList.remove('oculto');
     } else {
-      e3.textContent = 'Não foi possível confirmar o agendamento. Nada foi reservado. Verifique sua internet e tente novamente.';
+      e3.textContent = `Não foi possível confirmar o agendamento. Nada foi reservado. Verifique sua internet e tente novamente. (código: ${e.code || e.name || 'erro'})`;
       e3.classList.remove('oculto');
     }
-  } finally { setBusy(btn, false); }
+  } finally { clearTimeout(lento); setBusy(btn, false); }
 };
 
 // ---------------------------------------------------------------------

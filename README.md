@@ -94,6 +94,7 @@ npm install
 npm test            # lógica (horários, CPF, protocolo, vagas...) – não precisa de Firebase
 npm run test:ui     # navegador real + Firebase simulado (precisa do Playwright)
 node tests/ui/funcionamento.mjs   # página de dias de funcionamento
+node tests/ui/lento.mjs           # conexão lenta/travada
 npm run test:regras # regras do Firestore no emulador (precisa de Java)
 ```
 

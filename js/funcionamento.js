@@ -47,12 +47,15 @@ async function iniciar() {
 //  Dados do mês
 // ---------------------------------------------------------------------
 async function carregarMes() {
-  const ini = `${est.mes}-01`; const fim = C.ultimoDiaDoMes(est.mes);
+  const mes = est.mes; const ini = `${mes}-01`; const fim = C.ultimoDiaDoMes(mes);
+  est.ags = est.ags.filter((a) => a.data.startsWith(mes)); // não mostra dados de outro mês enquanto carrega
+  desenhar(); // calendário aparece já; números chegam em seguida
   try {
-    const [bl, ags] = await Promise.all([DB.listarBloqueios(), DB.listarAgendamentos(ini, fim)]);
+    const [bl, ags] = await Promise.all([DB.comTimeout(DB.listarBloqueios()), DB.comTimeout(DB.listarAgendamentos(ini, fim))]);
+    if (mes !== est.mes) return;
     est.bloq = new Map(bl.map((b) => [b.id, b])); est.ags = ags;
-  } catch (e) { console.error(e); toast(msgErro(e), true); }
-  desenhar();
+    desenhar();
+  } catch (e) { console.error(e); toast(e.code === 'timeout' ? 'Conexão lenta. Os dados do mês ainda não chegaram — tente novamente.' : msgErro(e), true); }
 }
 
 const ativosDe = (d) => est.ags.filter((a) => a.data === d && C.OCUPAM_VAGA.includes(a.status)).length;

@@ -6,7 +6,7 @@ const ts = () => ({ toDate: () => new Date(), __ts: 1 });
 export class Timestamp { static fromDate(d) { return { toDate: () => d }; } }
 export const serverTimestamp = ts;
 export const documentId = () => '__name__';
-export const getFirestore = () => ({}); export const getAuth = () => ({ get currentUser() { return globalThis.__user || null; } });
+export const initializeFirestore = () => ({}); export const getAuth = () => ({ get currentUser() { return globalThis.__user || null; } });
 export const initializeApp = () => ({});
 export const connectFirestoreEmulator = () => {}; export const connectAuthEmulator = () => {};
 export const setPersistence = async () => {}; export const browserSessionPersistence = {};
@@ -17,6 +17,8 @@ export const query = (c, ...cs) => ({ ...c, cs });
 const snap = (path, data) => ({ id: path.split('/').pop(), ref: { path }, data: () => data, exists: () => data !== undefined });
 export async function getDoc(r) { return snap(r.path, store.get(r.path)); }
 export async function getDocs(q) {
+  if (globalThis.__lento && q.path === 'bloqueios') await new Promise((r) => setTimeout(r, globalThis.__lento));
+  if (globalThis.__travado && q.path === 'bloqueios') await new Promise(() => {});
   const pre = q.path + '/'; let out = [];
   for (const [p, d] of store) if (p.startsWith(pre) && !p.slice(pre.length).includes('/')) out.push([p, d]);
   for (const c of q.cs || []) if (c.t === 'w') out = out.filter(([p, d]) => { const v = c.f === '__name__' ? p.split('/').pop() : d[c.f]; return { '==': v === c.v, '>=': v >= c.v, '<=': v <= c.v, '<': v < c.v }[c.op]; });
@@ -44,3 +46,11 @@ export async function signInWithEmailAndPassword(_a, email, senha) {
 }
 export const signOut = async () => { globalThis.__user = null; listeners.forEach((f) => f(null)); };
 export const onAuthStateChanged = (_a, f) => { listeners.push(f); f(globalThis.__user || null); };
+
+export const getDocFromServer = async (r) => getDoc(r);
+export async function runTransaction(_db, fn) {
+  if (globalThis.__commitTravado) await new Promise(() => {});
+  const b = writeBatch();
+  await fn({ set: (r, d, o) => b.set(r, d, o), update: (r, d) => b.update(r, d), delete: (r) => b.delete(r) });
+  return b.commit();
+}

@@ -4,8 +4,8 @@
 // =====================================================================
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
-  getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, collection, query, where,
-  writeBatch, serverTimestamp, orderBy, limit, documentId,
+  initializeFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, collection, query, where,
+  runTransaction, getDocFromServer, serverTimestamp, orderBy, limit, documentId,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import {
   getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut, onAuthStateChanged,
@@ -17,7 +17,8 @@ import * as C from './core.js';
 export const configurado = !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.apiKey)) && !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.appId));
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Long-polling: funciona em redes, antivírus, proxies e bloqueadores de anúncio que derrubam o canal padrão (streaming) do Firestore.
+export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 export const auth = getAuth(app);
 
 if (appCheckSiteKey) {
@@ -28,6 +29,33 @@ if (appCheckSiteKey) {
 if (usarEmulador) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
+
+let LIMITE_MS = 15000;
+/** (usado nos testes) altera o tempo limite padrão das operações. */
+export function definirLimite(ms) { LIMITE_MS = ms; }
+
+/** Evita espera infinita: se o Firebase não responder, falha com mensagem clara. */
+export function comTimeout(promessa, ms = LIMITE_MS) {
+  let t; const limite = new Promise((_, rej) => { t = setTimeout(() => { const e = new Error('Tempo esgotado ao falar com o servidor.'); e.code = 'timeout'; rej(e); }, ms); });
+  return Promise.race([promessa, limite]).finally(() => clearTimeout(t));
+}
+
+/**
+ * Gravação atômica de vários documentos (tudo ou nada), no mesmo formato do writeBatch.
+ * Usa transação: ela NÃO fica "na fila" quando a internet cai — falha na hora, em vez de
+ * deixar a tela travada e gravar escondido depois.
+ */
+function lote() {
+  const ops = [];
+  return {
+    set: (r, d, o) => ops.push(['set', r, d, o]),
+    update: (r, d) => ops.push(['update', r, d]),
+    delete: (r) => ops.push(['delete', r]),
+    commit: () => comTimeout(runTransaction(db, async (tx) => {
+      for (const [k, r, d, o] of ops) { if (k === 'set') (o ? tx.set(r, d, o) : tx.set(r, d)); else if (k === 'update') tx.update(r, d); else tx.delete(r); }
+    }, { maxAttempts: 1 }), LIMITE_MS + 5000),
+  };
 }
 
 export const CONFIG_PADRAO = {
@@ -49,23 +77,25 @@ export const CONFIG_PADRAO = {
 //  Leitura pública
 // ---------------------------------------------------------------------
 export async function lerConfig() {
-  const s = await getDoc(doc(db, 'config', 'geral'));
+  const s = await comTimeout(getDoc(doc(db, 'config', 'geral')));
   const hoje = C.hojeBR();
   const c = { ...CONFIG_PADRAO, ...(s.exists() ? s.data() : {}) };
   c.configurada = s.exists();
-  if (!c.abertura) c.abertura = hoje;
-  if (!c.fechamento) c.fechamento = C.somarDias(hoje, 60);
+  // Defesa: se alguém editou o documento à mão e o período ficou em formato errado (ex.: Timestamp), usa padrões.
+  if (!C.dataValida(c.abertura)) c.abertura = hoje;
+  if (!C.dataValida(c.fechamento)) c.fechamento = C.somarDias(hoje, 60);
+  for (const k of ['nomeSAC', 'municipio', 'local', 'endereco', 'telefone', 'email', 'aviso', 'encarregado']) if (typeof c[k] !== 'string') c[k] = CONFIG_PADRAO[k];
   return c;
 }
 
 export async function lerBloqueios(ini, fim) {
   const q = query(collection(db, 'bloqueios'), where(documentId(), '>=', ini), where(documentId(), '<=', fim));
-  const s = await getDocs(q);
+  const s = await comTimeout(getDocs(q));
   return new Map(s.docs.map((d) => [d.id, d.data()]));
 }
 
 export async function horariosOcupados(data) {
-  const s = await getDocs(query(collection(db, 'vagas'), where('data', '==', data)));
+  const s = await comTimeout(getDocs(query(collection(db, 'vagas'), where('data', '==', data))));
   return new Set(s.docs.map((d) => d.data().hora));
 }
 
@@ -84,7 +114,7 @@ export async function agendar(d) {
   const cpfMasc = C.mascararCPF(cpf);
   const id = C.slotId(d.data, d.hora);
 
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'vagas', id), { data: d.data, hora: d.hora, ref });
   b.set(doc(db, 'agendamentos', ref), {
     ref, protocolo, nome, cpf, cpfMasc, nascimento: d.nascimento,
@@ -101,6 +131,12 @@ export async function agendar(d) {
   try {
     await b.commit(); // só depois deste "await" a vaga é considerada confirmada
   } catch (e) {
+    if (e.code === 'timeout') {
+      // O servidor não respondeu a tempo: confirma no servidor se a gravação chegou a acontecer.
+      const ok = await comTimeout(getDocFromServer(doc(db, 'comprovantes', chave)), 8000).then((s) => s.exists()).catch(() => false);
+      if (ok) return { ref, protocolo, nome, cpfMasc, data: d.data, hora: d.hora, certidao: d.certidao, status: 'agendado' };
+      const x = new Error('INCERTO'); x.code = 'incerto'; x.protocolo = protocolo; throw x;
+    }
     if (e.code === 'permission-denied' || e.code === 'already-exists' || e.code === 'aborted') {
       const ocupados = await horariosOcupados(d.data).catch(() => new Set());
       if (ocupados.has(d.hora)) throw new HorarioOcupadoError('Este horário acabou de ser ocupado.');
@@ -122,7 +158,7 @@ export async function consultar(protocolo, cpf, nascimento) {
 }
 
 export async function cancelarCidadao(comp) {
-  const b = writeBatch(db);
+  const b = lote();
   b.update(doc(db, 'agendamentos', comp.ref), {
     status: 'cancelado', canceladoPor: 'cidadao', canceladoEm: serverTimestamp(), atualizadoEm: serverTimestamp(),
   });
@@ -187,7 +223,7 @@ export async function adminCriar(d) {
   const [chave, cpfKey] = await Promise.all([C.gerarChave(protocolo, cpf, d.nascimento), C.gerarCpfKey(cpf)]);
   const nome = C.normalizarNome(d.nome);
   const cpfMasc = C.mascararCPF(cpf);
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'vagas', C.slotId(d.data, d.hora)), { data: d.data, hora: d.hora, ref });
   b.set(doc(db, 'agendamentos', ref), {
     ref, protocolo, nome, cpf, cpfMasc, nascimento: d.nascimento, telefone: C.apenasDigitos(d.telefone),
@@ -211,7 +247,7 @@ export async function adminCriar(d) {
 }
 
 export async function adminAlterarHorario(a, data, hora) {
-  const b = writeBatch(db);
+  const b = lote();
   b.delete(doc(db, 'vagas', C.slotId(a.data, a.hora)));
   b.set(doc(db, 'vagas', C.slotId(data, hora)), { data, hora, ref: a.ref });
   b.update(doc(db, 'agendamentos', a.ref), { data, hora, atualizadoEm: serverTimestamp() });
@@ -228,7 +264,7 @@ export async function adminAlterarHorario(a, data, hora) {
 }
 
 export async function adminCancelar(a, motivo) {
-  const b = writeBatch(db);
+  const b = lote();
   b.update(doc(db, 'agendamentos', a.ref), { status: 'cancelado', canceladoPor: 'admin', canceladoEm: serverTimestamp(), atualizadoEm: serverTimestamp(), motivoCancelamento: motivo || '' });
   b.update(doc(db, 'comprovantes', a.chave), { status: 'cancelado', canceladoEm: serverTimestamp() });
   b.delete(doc(db, 'vagas', C.slotId(a.data, a.hora)));
@@ -240,7 +276,7 @@ export async function adminCancelar(a, motivo) {
 
 /** presente | concluido | faltou  (a vaga continua ocupada; o CPF é liberado ao concluir/faltar) */
 export async function adminMarcar(a, status) {
-  const b = writeBatch(db);
+  const b = lote();
   b.update(doc(db, 'agendamentos', a.ref), { status, atualizadoEm: serverTimestamp() });
   b.update(doc(db, 'comprovantes', a.chave), { status });
   if (status === 'concluido' || status === 'faltou') b.delete(doc(db, 'cpfAtivos', a.cpfKey));
@@ -251,27 +287,27 @@ export async function adminMarcar(a, status) {
 
 /** Salva (mescla) os campos informados. Nunca apaga o período nem a logo se não vierem. */
 export async function salvarConfig(campos) {
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'config', 'geral'), campos, { merge: true });
   audit(b, 'salvar_config', '', Object.keys(campos).filter((k) => k !== 'logo').join(', '));
   await b.commit();
 }
 
 export async function salvarLogo(dataUrl) {
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'config', 'geral'), { logo: dataUrl || '' }, { merge: true });
   audit(b, dataUrl ? 'alterar_logo' : 'remover_logo', '', '');
   await b.commit();
 }
 
 export async function bloquearData(data, motivo) {
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'bloqueios', data), { motivo: motivo || '', por: quem().email, em: serverTimestamp() });
   audit(b, 'bloquear_data', '', `${data} ${motivo || ''}`);
   await b.commit();
 }
 export async function desbloquearData(data) {
-  const b = writeBatch(db);
+  const b = lote();
   b.delete(doc(db, 'bloqueios', data));
   audit(b, 'desbloquear_data', '', data);
   await b.commit();
@@ -293,7 +329,7 @@ export async function gerarBackup() {
     a.historico = h.docs.map((d) => ({ id: d.id, data: d.data() }));
   }
   const rep = JSON.stringify(out, (_, v) => (v && typeof v === 'object' && typeof v.toDate === 'function' ? { __ts: v.toDate().toISOString() } : v));
-  const b = writeBatch(db);
+  const b = lote();
   audit(b, 'backup', '', `${out.colecoes.agendamentos.length} agendamentos`);
   await b.commit().catch(() => {});
   return rep;
@@ -307,8 +343,8 @@ export async function restaurarBackup(texto) {
   const dados = JSON.parse(texto, reviver);
   if (!dados || dados.versao !== 1 || !dados.colecoes) throw new Error('Arquivo de backup inválido.');
   let n = 0;
-  let b = writeBatch(db); let cont = 0;
-  const flush = async () => { if (cont) { await b.commit(); b = writeBatch(db); cont = 0; } };
+  let b = lote(); let cont = 0;
+  const flush = async () => { if (cont) { await b.commit(); b = lote(); cont = 0; } };
   const add = async (ref, data) => { b.set(ref, data); n++; if (++cont >= 400) await flush(); };
   for (const nome of COLECOES_BACKUP) {
     for (const it of dados.colecoes[nome] || []) {
@@ -317,21 +353,21 @@ export async function restaurarBackup(texto) {
     }
   }
   await flush();
-  const f = writeBatch(db); audit(f, 'restaurar_backup', '', `${n} documentos`); await f.commit();
+  const f = lote(); audit(f, 'restaurar_backup', '', `${n} documentos`); await f.commit();
   return n;
 }
 
 /** LGPD — retenção: apaga dados pessoais de atendimentos encerrados antes de `corte`. */
 export async function anonimizarAntes(corte) {
   const s = await getDocs(query(collection(db, 'agendamentos'), where('data', '<', corte)));
-  let n = 0; let b = writeBatch(db); let cont = 0;
+  let n = 0; let b = lote(); let cont = 0;
   for (const d of s.docs) {
     const a = d.data();
     if (a.anonimizado || !['concluido', 'faltou', 'cancelado'].includes(a.status)) continue;
     b.update(d.ref, { nome: 'ANONIMIZADO', cpf: '', cpfMasc: '', cpfKey: '', nascimento: '1900-01-01', telefone: '', email: '', chave: '', anonimizado: true, atualizadoEm: serverTimestamp() });
     if (a.chave) b.delete(doc(db, 'comprovantes', a.chave));
     n++; cont += 2;
-    if (cont >= 400) { await b.commit(); b = writeBatch(db); cont = 0; }
+    if (cont >= 400) { await b.commit(); b = lote(); cont = 0; }
   }
   audit(b, 'anonimizar', '', `antes de ${corte}: ${n}`);
   await b.commit();
@@ -343,7 +379,7 @@ export async function anonimizarAntes(corte) {
 // ---------------------------------------------------------------------
 /** Período em que o calendário fica aberto (mantém os demais campos da configuração). */
 export async function salvarPeriodo(abertura, fechamento) {
-  const b = writeBatch(db);
+  const b = lote();
   b.set(doc(db, 'config', 'geral'), { abertura, fechamento }, { merge: true });
   audit(b, 'alterar_periodo', '', `${abertura} a ${fechamento}`);
   await b.commit();
@@ -352,7 +388,7 @@ export async function salvarPeriodo(abertura, fechamento) {
 /** itens: [{data, motivo}] — bloqueia vários dias de uma vez (em lotes). */
 export async function bloquearVarias(itens) {
   for (let i = 0; i < itens.length; i += 100) {
-    const b = writeBatch(db); const parte = itens.slice(i, i + 100);
+    const b = lote(); const parte = itens.slice(i, i + 100);
     for (const it of parte) b.set(doc(db, 'bloqueios', it.data), { motivo: it.motivo || '', por: quem().email, em: serverTimestamp() });
     audit(b, 'bloquear_datas', '', parte.map((x) => x.data).join(', ').slice(0, 400) + (it0(parte)));
     await b.commit();
@@ -362,7 +398,7 @@ const it0 = (p) => (p[0] && p[0].motivo ? ` | ${p[0].motivo}` : '');
 
 export async function desbloquearVarias(datas) {
   for (let i = 0; i < datas.length; i += 100) {
-    const b = writeBatch(db); const parte = datas.slice(i, i + 100);
+    const b = lote(); const parte = datas.slice(i, i + 100);
     for (const d of parte) b.delete(doc(db, 'bloqueios', d));
     audit(b, 'desbloquear_datas', '', parte.join(', ').slice(0, 400));
     await b.commit();
