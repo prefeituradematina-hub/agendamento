@@ -34,8 +34,16 @@ $('#fLogin').addEventListener('submit', async (e) => {
   try { await DB.entrar($('#lEmail').value.trim(), $('#lSenha').value); }
   catch (x) {
     console.error(x);
-    er.textContent = ['auth/too-many-requests'].includes(x.code)
-      ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' : 'E-mail ou senha incorretos.';
+    const msgs = {
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
+      'auth/operation-not-allowed': 'O login por e-mail/senha não está ativado no Firebase (Authentication → Método de login → E-mail/senha).',
+      'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Configurações → Domínios autorizados).',
+      'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'A apiKey em firebase-config.js é inválida.',
+      'auth/invalid-api-key': 'A apiKey em firebase-config.js é inválida.',
+      'auth/network-request-failed': 'Sem conexão com o Firebase. Verifique a internet.',
+      'auth/user-disabled': 'Este usuário foi desativado no Firebase.',
+    };
+    er.textContent = msgs[x.code] || 'E-mail ou senha incorretos.';
     er.classList.remove('oculto');
   }
 });
@@ -44,9 +52,14 @@ $('#bSair').onclick = () => DB.sair();
 DB.lerConfig().then((c) => { cfg = c; aplicarMarca(c); }).catch(() => {});
 DB.aoMudarLogin(async (u) => {
   if (!u) { $('#login').classList.remove('oculto'); $('#painel').classList.add('oculto'); $('#quem').classList.add('oculto'); return; }
-  if (!(await DB.ehAdmin(u.uid))) {
+  let admin = false; let falha = null;
+  try { admin = await DB.ehAdmin(u.uid); } catch (e) { falha = e; console.error(e); }
+  if (falha || !admin) {
     await DB.sair();
-    $('#eLogin').textContent = 'Este usuário não tem permissão de administrador.'; $('#eLogin').classList.remove('oculto'); return;
+    $('#eLogin').textContent = falha
+      ? `Não foi possível verificar a permissão (${falha.code || 'erro'}). Confira se as regras do Firestore foram publicadas e se há conexão.`
+      : `Este usuário não é administrador. No Firestore, crie a coleção "admins" com um documento cujo ID seja exatamente este UID: ${u.uid}`;
+    $('#eLogin').classList.remove('oculto'); return;
   }
   $('#login').classList.add('oculto'); $('#painel').classList.remove('oculto'); $('#quem').classList.remove('oculto');
   $('#quemEmail').textContent = u.email; $('#lSenha').value = '';

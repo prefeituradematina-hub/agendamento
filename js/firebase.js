@@ -17,15 +17,15 @@ import * as C from './core.js';
 export const configurado = !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.apiKey)) && !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.appId));
 
 export const app = initializeApp(firebaseConfig);
+// App Check precisa ser iniciado ANTES do Firestore/Auth, senão as primeiras requisições saem sem token
+// (e seriam recusadas quando o "Aplicar/Enforce" estiver ligado).
+if (appCheckSiteKey) {
+  const { initializeAppCheck, ReCaptchaV3Provider } = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js');
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+}
 // Long-polling: funciona em redes, antivírus, proxies e bloqueadores de anúncio que derrubam o canal padrão (streaming) do Firestore.
 export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 export const auth = getAuth(app);
-
-if (appCheckSiteKey) {
-  import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js').then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
-    initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
-  });
-}
 if (usarEmulador) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -178,8 +178,9 @@ export async function entrar(email, senha) {
 export const sair = () => signOut(auth);
 export const aoMudarLogin = (fn) => onAuthStateChanged(auth, fn);
 
+/** true/false conforme o documento admins/{uid} exista; lança erro se não for possível verificar (ex.: regras não publicadas). */
 export async function ehAdmin(uid) {
-  try { return (await getDoc(doc(db, 'admins', uid))).exists(); } catch { return false; }
+  return (await comTimeout(getDoc(doc(db, 'admins', uid)))).exists();
 }
 
 const comId = (d) => ({ id: d.id, ...d.data() });

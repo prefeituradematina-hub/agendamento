@@ -14,15 +14,16 @@
 // =====================================================================
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCVA-CAQwB-Kk2FqMn9fSQcyFfet0qz7xs",
+  apiKey: "COLOQUE_SUA_API_KEY",
   authDomain: "agendamento-f33e8.firebaseapp.com",
   databaseURL: "https://agendamento-f33e8-default-rtdb.firebaseio.com",
   projectId: "agendamento-f33e8",
   storageBucket: "agendamento-f33e8.firebasestorage.app",
   messagingSenderId: "947314343025",
-  appId: "1:947314343025:web:4e6c5158eec4705437efd0",
-  measurementId: "G-ZQZC6SBMD8"
+  appId: "COLOQUE_SEU_APP_ID",
+  measurementId: "COLOQUE_SEU_MEASUREMENT_ID"
 };
+
 // ---------------------------------------------------------------------
 //  OPCIONAL (recomendado em produção): Firebase App Check com reCAPTCHA v3.
 //  Impede que robôs de fora do seu site preencham as vagas.

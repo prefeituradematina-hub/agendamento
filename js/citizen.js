@@ -52,10 +52,8 @@ async function iniciar() {
   } catch (e) {
     console.error(e);
     const a = $('#avisoCfg'); a.classList.remove('oculto');
-    const dica = DB.explicarErro(e, true);
-    a.innerHTML = `${C.esc(dica || 'Não foi possível carregar as informações agora. Verifique sua internet.')} <span class="dica">(código: ${C.esc(e.code || e.name || 'erro')})</span> <button class="btn peq claro" id="bTentar" type="button">Tentar de novo</button>`;
+    a.innerHTML = 'Não foi possível carregar as informações agora. Verifique sua internet. <button class="btn peq claro" id="bTentar" type="button">Tentar de novo</button>';
     $('#bTentar').onclick = () => location.reload();
-    if (e.code === 'not-found' || e.code === 'permission-denied') $('#bAgendar').disabled = true;
   }
 }
 
@@ -189,10 +187,7 @@ async function escolherData(d) {
   } catch (e) {
     if (meu !== tokenDia) return;
     console.error(e); box.innerHTML = '';
-    const motivo = e.code === 'permission-denied' ? 'O sistema ainda não está liberado para consultas (regras do banco não publicadas). Avise o SAC.'
-      : e.code === 'not-found' ? 'O banco de dados do sistema ainda não foi criado. Avise o SAC.'
-      : 'Verifique sua internet e tente novamente.';
-    $('#e2').textContent = `Não foi possível carregar os horários. ${motivo} (código: ${e.code || e.name || 'erro'})`;
+    $('#e2').textContent = 'Não foi possível carregar os horários. Tente novamente.';
   }
 }
 
@@ -240,7 +235,7 @@ $('#c3').onclick = async () => {
       e3.textContent = 'O agendamento não foi aceito. Possíveis motivos: já existe um agendamento ativo para este CPF (use "Consultar ou cancelar" na página inicial) ou a data não está mais disponível. Nada foi reservado.';
       e3.classList.remove('oculto');
     } else {
-      e3.textContent = `${DB.explicarErro(e, true) || 'Não foi possível confirmar o agendamento. Verifique sua internet e tente novamente.'} Nada foi reservado. (código: ${e.code || e.name || 'erro'})`;
+      e3.textContent = `Não foi possível confirmar o agendamento. Nada foi reservado. Verifique sua internet e tente novamente. (código: ${e.code || e.name || 'erro'})`;
       e3.classList.remove('oculto');
     }
   } finally { clearTimeout(lento); setBusy(btn, false); }

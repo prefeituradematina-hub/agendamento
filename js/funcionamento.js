@@ -28,7 +28,7 @@ $('#bSair').onclick = () => DB.sair();
 DB.lerConfig().then((c) => aplicarMarca(c)).catch(() => {});
 DB.aoMudarLogin(async (u) => {
   if (!u) { $('#login').classList.remove('oculto'); $('#painel').classList.add('oculto'); $('#quem').classList.add('oculto'); return; }
-  if (!(await DB.ehAdmin(u.uid))) { await DB.sair(); $('#eLogin').textContent = 'Este usuário não tem permissão de administrador.'; $('#eLogin').classList.remove('oculto'); return; }
+  if (!(await DB.ehAdmin(u.uid).catch(() => false))) { await DB.sair(); $('#eLogin').textContent = 'Este usuário não tem permissão de administrador.'; $('#eLogin').classList.remove('oculto'); return; }
   $('#login').classList.add('oculto'); $('#painel').classList.remove('oculto'); $('#quem').classList.remove('oculto'); $('#quemEmail').textContent = u.email;
   logoutOcioso(() => DB.sair(), 30);
   await iniciar();
