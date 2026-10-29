@@ -1,55 +1,101 @@
-# SAC CIN — GitHub Pages + Firebase Realtime Database
+# Agendamento SAC – Carteira de Identidade Nacional (CIN)
 
-## AVISO DE SEGURANÇA
-Este pacote é um protótipo inicial, **não pronto para receber dados reais**. Um site estático não consegue implementar sozinho proteção robusta contra bots, rate limit, validação de negócio no servidor ou recuperação segura de agendamento entre dispositivos. Teste todas as regras e revise privacidade/LGPD antes de uso real.
+Sistema de agendamento online (gratuito para o cidadão) feito em **HTML + JavaScript puro**, com **Firebase** (Firestore + Authentication) e hospedagem no **GitHub Pages**.
 
-## Funcionalidades incluídas
-- Formulário de agendamento para dias úteis, das 08h às 12h45, intervalos de 15 minutos (20 horários).
-- Autenticação anônima para visitante e e-mail/senha para administrador.
-- Painel administrativo, mudança de status e exportação CSV.
-- Configuração Firebase em arquivo separado.
-- Regras iniciais do Realtime Database com acesso negado por padrão.
+| Arquivo | Para que serve |
+|---|---|
+| `index.html` | Site do cidadão (agendar, consultar, cancelar, comprovante) |
+| `admin.html` | Painel administrativo (login) |
+| **`firebase-config.js`** | **Único arquivo com os dados do Firebase** (separado do index) |
+| `firestore.rules` | Regras de segurança — garantem vagas, limite de 20/dia, fins de semana etc. |
+| `js/`, `css/` | Código do sistema |
+| `tests/` | Testes automatizados |
 
-## 1. Configurar o app Web
-1. Abra https://console.firebase.google.com/project/agendamento-f33e8/settings/general
-2. Em Seus apps, abra o app Web ou crie um se ainda não existir.
-3. Copie os valores `apiKey`, `appId` e `measurementId` para `firebase-config.js`.
-4. Confirme `databaseURL` e `projectId` com os dados do seu projeto.
-5. Não inclua senhas, service account, tokens privados ou credenciais de servidor neste arquivo.
+> **Como funciona sem servidor:** as regras de negócio (20 vagas, sem fim de semana, sem horário duplicado, datas bloqueadas) ficam em `firestore.rules`, executadas pelo Google. Cada horário é um documento `vagas/AAAA-MM-DD_HH:MM`: só um agendamento consegue criá-lo, mesmo com acessos simultâneos.
 
-## 2. Authentication
-Firebase Console > Authentication > Sign-in method:
-- Ative Anonymous.
-- Ative Email/Password.
-A conta administrativa deve existir no Firebase Authentication.
+---
 
-## 3. Regras do Realtime Database
-1. Antes de mudar regras, salve uma cópia das atuais.
-2. Abra Realtime Database > Rules e revise `database.rules.json` antes de publicar.
-3. O banco deve permanecer privado por padrão. Nunca use `.read: true` ou `.write: true` globalmente.
-4. Para autorizar o administrador, em Realtime Database > Data crie manualmente `admins/UID_EXATO` com valor booleano `true`, substituindo pelo UID da conta administrativa. Não habilite escrita pública em `admins`.
-5. Teste permissões permitidas e negadas no Rules Playground ou Emulator. As regras neste pacote são ponto de partida, não certificação de segurança.
+## 1. Criar o projeto no Firebase
+
+1. Acesse <https://console.firebase.google.com> → **Adicionar projeto**.
+2. **Build → Firestore Database → Criar banco de dados**. Escolha **modo de produção** e a região **southamerica-east1 (São Paulo)**.
+3. **Build → Authentication → Começar → Email/senha → Ativar**.
+4. **Configurações do projeto (engrenagem) → Seus aplicativos → `</>` (Web)** → registre o app e copie o `firebaseConfig`.
+5. Cole os valores em **`firebase-config.js`**.
+
+## 2. Publicar as regras de segurança (obrigatório)
+
+No console: **Firestore Database → Regras** → apague tudo, cole o conteúdo de `firestore.rules` → **Publicar**.
+(Ou, com a CLI: `npm i -g firebase-tools && firebase login && firebase deploy --only firestore:rules`.)
+
+Sem este passo o sistema **não funciona** e, pior, o banco fica sem as proteções.
+
+## 3. Criar o primeiro administrador
+
+1. **Authentication → Usuários → Adicionar usuário**: informe e-mail e uma senha forte. Copie o **UID** do usuário criado.
+2. **Firestore → Iniciar coleção** `admins` → ID do documento = **o UID copiado** → crie um campo qualquer (ex.: `nome` = `Fulano`).
+3. Acesse `admin.html`, entre e abra **Datas e configurações**: preencha nome do SAC, município, endereço, telefone e o **período em que o calendário fica aberto**. Clique em *Salvar*. **Sem salvar a configuração, o cidadão não consegue agendar.**
+
+Para outros servidores: repita (usuário + documento em `admins`). Para remover acesso: apague o documento em `admins`.
 
 ## 4. Publicar no GitHub Pages
-1. Crie um repositório, por exemplo `sac-cin`.
-2. Envie `index.html`, `firebase-config.js`, pastas `css/` e `js/`, além dos arquivos de configuração e README.
-3. GitHub > Settings > Pages > Deploy from a branch > `main` > `/ (root)`.
-4. Aguarde a URL publicada.
-5. Firebase Console > Authentication > Settings > Authorized domains: adicione o domínio real do seu GitHub Pages.
 
-## Limitações que devem ser resolvidas antes da produção
-- A consulta por protocolo e CPF só funciona na sessão anônima original do navegador. Consultar em outro dispositivo requer um backend seguro; não se deve liberar busca pública de CPF no banco.
-- Se a pessoa limpar dados do navegador ou mudar de dispositivo, pode perder a identidade anônima e não recuperar o registro.
-- O marcador de slot contém UID anônimo. A leitura de disponibilidade está restrita a usuários autenticados, mas UID continua sendo um identificador pseudônimo.
-- Regras do Realtime Database não validam de forma confiável todas as regras de calendário (como feriados e datas passadas) nem oferecem rate limit. A validação JavaScript pode ser alterada pelo usuário.
-- Transações protegem a disputa pelo horário, mas falhas de rede entre reservar o slot e gravar o agendamento precisam de testes e monitoramento.
-- O painel administrativo lê os agendamentos para filtrar no navegador; as regras permitem leitura apenas ao dono ou administrador. Teste esse acesso no seu projeto.
-- Não use CPF real até revisar a base legal, aviso de privacidade, retenção, controles de acesso, backup e resposta a incidentes.
+1. Crie um repositório no GitHub e envie todos os arquivos desta pasta.
+2. **Settings → Pages → Source: Deploy from a branch → `main` / `(root)`** → Save.
+3. O site fica em `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/` (cidadão) e `.../admin.html` (painel).
+4. No Firebase: **Authentication → Configurações → Domínios autorizados → Adicionar** `SEU-USUARIO.github.io`. (Sem isso o login do painel falha.)
 
-## Estrutura
-- `/admins/{uid}`: boolean `true` para administrador autorizado.
-- `/slots/{AAAA-MM-DD}/{HHmm}`: objeto `{ "uid": "UID_ANONIMO" }`.
-- `/appointments/{uid}/{protocolo}`: dados do agendamento privado ao UID e administradores.
+**Domínio próprio e HTTPS:** em *Settings → Pages → Custom domain* informe, por exemplo, `agendamento.suaprefeitura.gov.br`; no provedor de DNS crie um registro **CNAME** apontando para `SEU-USUARIO.github.io`; marque **Enforce HTTPS** (certificado gratuito, automático). Depois adicione o novo domínio em *Domínios autorizados* do Firebase.
 
-## Recomendação
-Use dados fictícios primeiro. Para operação pública real, com consulta em outros dispositivos, cancelamento confiável e resistência a abuso, será necessário backend confiável ou arquitetura equivalente que valide as operações no servidor.
+## 5. Proteção contra robôs (recomendado)
+
+Como o site é público, um robô poderia tentar reservar todas as vagas. O sistema limita a 1 agendamento ativo por CPF, mas a defesa forte é o **Firebase App Check**:
+1. Console → **App Check → Aplicativo Web → reCAPTCHA v3** (crie a chave em <https://www.google.com/recaptcha/admin>).
+2. Cole a *site key* em `appCheckSiteKey` no `firebase-config.js`.
+3. Depois de testar, ative **Aplicar (Enforce)** para o Firestore.
+
+O painel permite cancelar agendamentos suspeitos (libera a vaga na hora).
+
+## 6. Uso diário
+
+- **Agendamentos**: busca por nome, CPF, protocolo ou data (dd/mm/aaaa); abrir → presença, concluir, não compareceu, alterar data/horário, cancelar, histórico, comprovante. O CPF aparece mascarado; "mostrar" revela dentro do detalhe.
+- **Controle de vagas**: por dia, "vagas disponíveis: X de 20", concluídos, cancelamentos, faltas.
+- **Novo agendamento**: cadastro manual (mesmas travas de horário e CPF).
+- **Datas e configurações**: bloqueio de feriados/férias (intervalos), endereço, contatos e **janela de abertura do calendário**.
+- **Relatórios**: por dia ou mês, exportação em **PDF** e **Excel**.
+- **Auditoria**: quem fez o quê (somente inclusão, ninguém apaga).
+
+## 7. Backup e restauração
+
+- **Manual**: painel → *Backup e LGPD* → *Baixar backup (JSON)*. Guarde em local protegido (contém dados pessoais). Para restaurar: escolha o arquivo e *Restaurar*. Faça um backup antes de restaurar.
+- **Automático (recomendado)**: Firestore → **Backups → Agendamento de backup** (diário, retenção de 7 dias a 14 semanas). Requer plano Blaze (pago por uso; para este volume o custo é mínimo). Restauração: `gcloud firestore databases restore ...` ou pelo console (aba Backups).
+
+## 8. LGPD
+
+- Coleta só o necessário; o CPF nunca aparece inteiro em comprovante, URL ou página pública.
+- Consultar/cancelar exige **protocolo + CPF + nascimento** (o ID do comprovante é derivado desses três dados; não existe listagem pública).
+- Retenção: painel → *Backup e LGPD* → **Anonimizar** atendimentos encerrados anteriores a uma data.
+- Defina o responsável (encarregado) e a base legal junto à assessoria jurídica do município, e ajuste o texto de privacidade em `index.html` (seção `vPriv`).
+
+## 9. E-mail de confirmação
+
+O Firebase sozinho não envia e-mail sem servidor. Por isso o botão **"Abrir no meu e-mail"** só abre o e-mail do próprio cidadão com os dados prontos, e o sistema **não afirma que enviou nada**. Para envio automático seria preciso um serviço externo (por exemplo, a extensão *Trigger Email* do Firebase, plano Blaze + SMTP).
+
+## 10. Limites do Firebase (plano gratuito Spark)
+
+50 mil leituras e 20 mil gravações por dia. Cada cidadão consome poucas dezenas de leituras; o volume de 20 atendimentos/dia cabe com folga.
+
+## 11. Testes
+
+```bash
+npm install
+npm test            # lógica (horários, CPF, protocolo, vagas...) – não precisa de Firebase
+npm run test:ui     # navegador real + Firebase simulado (precisa do Playwright)
+npm run test:regras # regras do Firestore no emulador (precisa de Java)
+```
+
+Veja `docs/relatorio-testes.md` para o que foi e o que não foi executado.
+
+## 12. Desenvolvimento local
+
+`python3 -m http.server 8000` na pasta e abra `http://localhost:8000` (os módulos JS exigem servidor; não abra o arquivo direto). Adicione `localhost` aos domínios autorizados do Firebase.
