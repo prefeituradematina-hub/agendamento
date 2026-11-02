@@ -10,6 +10,9 @@ Data: 28/10/2026. Ambiente: Node 22, Chromium (Playwright).
 
 ## Correções desta revisão
 
+- **Botão "Realizar agendamento" parado (29/10):** na versão publicada o botão era desativado sem explicação quando a configuração não estava salva ou as regras não estavam publicadas, e um `firebase-config.js` sem as exportações opcionais derrubava toda a página. Agora o botão nunca fica morto (ao clicar mostra o motivo), o import da configuração é tolerante e todas as páginas mostram um aviso vermelho se o sistema não conseguir iniciar. Mescladas as melhorias da versão publicada (mensagens de login, App Check antes do Firestore, verificação de administrador com erro claro). Testes: `lento.mjs` 19/19.
+
+- **Erro `not-found` ao confirmar (29/10):** indica que o banco Firestore não existe no projeto Firebase. O sistema agora diagnostica e explica (para o cidadão e para o painel), bloqueia o botão de agendar quando o banco não é encontrado na abertura e o README ganhou a tabela "Problemas comuns".
 - **"Confirmando…" sem fim (29/10):** a gravação usava um lote do Firestore, que fica numa fila do navegador quando o servidor não responde (a tela ficava esperando e a gravação podia acontecer escondida depois). Agora usa transação (falha na hora quando não há conexão), tempo limite de 20 s, verificação no servidor após o tempo limite, mensagem clara com o protocolo de referência e conexão por long-polling (funciona em redes/antivírus/bloqueadores que derrubam o canal padrão). Teste: `tests/ui/lento.mjs` (13/13).
 - **Calendário travando (29/10):** o calendário só era desenhado depois de uma consulta ao Firebase; com conexão lenta ou bloqueada a tela ficava em branco. Agora é desenhado na hora, as datas bloqueadas chegam em segundo plano, há tempo limite de 15 s com mensagem clara, o Firestore usa detecção automática de long-polling (redes/navegadores que bloqueiam o canal padrão) e uma configuração salva com formato errado não derruba mais a tela. Teste: `tests/ui/lento.mjs` (8/8).
 - Salvar configurações usava gravação completa e podia apagar período/logo → agora mescla campos.
@@ -36,3 +39,12 @@ Data: 28/10/2026. Ambiente: Node 22, Chromium (Playwright).
 
 - Robôs podem tentar ocupar vagas com CPFs válidos fabricados: ative o **App Check** (README, seção 5) e monitore o painel.
 - O CPF é guardado em texto no documento do agendamento (somente administrador lê), para o servidor conferir. Restrinja bem quem é administrador.
+
+## Revisão técnica (Out/2026)
+Corrigido: lote com vários agendamentos compartilhando um `cpfKey`; datas impossíveis (30/02) nas regras; comprovante agora confere `cpfMasc`/`certidao`/`ref`; `restaurarBackup` não falha em dados existentes (pula vagas/CPF/histórico já presentes e limita datas por lote); backup grava Timestamps corretamente; validação de abertura/fechamento ao salvar; protocolo tolera O/I/L digitados. Rules tests novos escritos (ainda sem emulador). Suítes: core 16/16, smoke 40/40, funcionamento 12/12, lento 20/20.
+
+## Alterações de 30/10/2026
+- Consulta/cancelamento do cidadão agora usa **protocolo + CPF** (sem data de nascimento). A chave do comprovante mudou (v2): agendamentos criados antes desta versão não são encontrados pela consulta pública; o administrador continua vendo e cancelando todos no painel.
+- Um agendamento por CPF: "concluído" passa a manter o CPF bloqueado; só cancelado ou "faltou" libera para novo agendamento.
+- Calendário do cidadão abre no mês do primeiro dia disponível (antes ficava vazio no fim do mês).
+- Suítes: core 16/16, smoke 40/40, funcionamento 12/12, lento 20/20.

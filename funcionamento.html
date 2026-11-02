@@ -9,6 +9,13 @@
 <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
+<div id="falhaInicio" style="display:none;background:#fdeceb;border-left:5px solid #b42318;color:#1b2430;padding:12px 16px;margin:0;font:15px/1.4 system-ui,sans-serif"></div>
+<script>
+(function(){var box=document.getElementById('falhaInicio');function mostrar(m){box.style.display='block';box.textContent='Erro ao iniciar o sistema: '+m+' — confira os arquivos js/ e firebase-config.js (todos devem ser da mesma versão).';}
+window.addEventListener('error',function(e){if(!window.__cinOk)mostrar(e.message||'falha ao carregar scripts');});
+window.addEventListener('unhandledrejection',function(e){if(!window.__cinOk)mostrar(String(e.reason&&e.reason.message||e.reason));});
+setTimeout(function(){if(!window.__cinOk)mostrar('o sistema não carregou (verifique a internet e se os arquivos foram enviados ao GitHub)');},7000);})();
+</script>
 <header class="topo"><div class="in">
   <div class="brasao" aria-hidden="true">SAC</div>
   <h1>Dias de funcionamento<small>Agendamento da CIN</small></h1>

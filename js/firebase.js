@@ -11,7 +11,11 @@ import {
   getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut, onAuthStateChanged,
   setPersistence, browserSessionPersistence,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { firebaseConfig, appCheckSiteKey, usarEmulador } from '../firebase-config.js';
+import * as CFG from '../firebase-config.js';
+// Tolerante: se o arquivo de configuração tiver só `firebaseConfig`, o sistema continua funcionando.
+const firebaseConfig = CFG.firebaseConfig || {};
+const appCheckSiteKey = CFG.appCheckSiteKey || '';
+const usarEmulador = !!CFG.usarEmulador;
 import * as C from './core.js';
 
 export const configurado = !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.apiKey)) && !/^(COLE|COLOQUE)/i.test(String(firebaseConfig.appId));
@@ -26,9 +30,24 @@ if (appCheckSiteKey) {
 // Long-polling: funciona em redes, antivírus, proxies e bloqueadores de anúncio que derrubam o canal padrão (streaming) do Firestore.
 export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 export const auth = getAuth(app);
+
 if (usarEmulador) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
+
+/** Traduz erros do Firebase em orientação clara (para o painel e para o cidadão). */
+export function explicarErro(e, publico = false) {
+  const c = e && e.code;
+  if (c === 'not-found') return publico
+    ? 'O banco de dados do sistema ainda não foi criado no Firebase. Avise o SAC.'
+    : 'O banco Firestore NÃO existe neste projeto Firebase. No Console: Build > Firestore Database > Criar banco de dados (não é o "Realtime Database"). Depois publique o arquivo firestore.rules.';
+  if (c === 'permission-denied') return publico
+    ? 'O agendamento foi recusado pelo sistema. Confira a data e o horário e tente de novo.'
+    : 'Operação recusada pelas regras do Firestore: data inválida, bloqueada ou fora do período, horário já ocupado — ou o arquivo firestore.rules ainda não foi publicado (Firestore > Regras).';
+  if (c === 'failed-precondition' || c === 'unimplemented') return publico ? 'Serviço indisponível no momento. Avise o SAC.' : `Configuração do Firestore incompleta (${c}). Veja o console do navegador (F12).`;
+  if (c === 'timeout' || c === 'unavailable') return 'Sem resposta do servidor. Verifique a internet e tente novamente.';
+  return null;
 }
 
 let LIMITE_MS = 15000;
@@ -109,7 +128,7 @@ export async function agendar(d) {
   const ref = C.gerarRef();
   const protocolo = C.gerarProtocolo();
   const cpf = C.apenasDigitos(d.cpf);
-  const [chave, cpfKey] = await Promise.all([C.gerarChave(protocolo, cpf, d.nascimento), C.gerarCpfKey(cpf)]);
+  const [chave, cpfKey] = await Promise.all([C.gerarChave(protocolo, cpf), C.gerarCpfKey(cpf)]);
   const nome = C.normalizarNome(d.nome);
   const cpfMasc = C.mascararCPF(cpf);
   const id = C.slotId(d.data, d.hora);
@@ -148,10 +167,10 @@ export async function agendar(d) {
   return { ref, protocolo, nome, cpfMasc, data: d.data, hora: d.hora, certidao: d.certidao, status: 'agendado' };
 }
 
-export async function consultar(protocolo, cpf, nascimento) {
+export async function consultar(protocolo, cpf) {
   const p = C.normalizarProtocolo(protocolo);
-  if (!p || !C.validarCPF(cpf) || !C.dataValida(nascimento)) return null;
-  const chave = await C.gerarChave(p, cpf, nascimento);
+  if (!p || !C.validarCPF(cpf)) return null;
+  const chave = await C.gerarChave(p, cpf);
   const s = await getDoc(doc(db, 'comprovantes', chave));
   if (!s.exists()) return null;
   return { ...s.data(), chave, cpfKey: await C.gerarCpfKey(cpf) };
@@ -221,7 +240,7 @@ export async function adminCriar(d) {
   const ref = C.gerarRef();
   const protocolo = C.gerarProtocolo();
   const cpf = C.apenasDigitos(d.cpf);
-  const [chave, cpfKey] = await Promise.all([C.gerarChave(protocolo, cpf, d.nascimento), C.gerarCpfKey(cpf)]);
+  const [chave, cpfKey] = await Promise.all([C.gerarChave(protocolo, cpf), C.gerarCpfKey(cpf)]);
   const nome = C.normalizarNome(d.nome);
   const cpfMasc = C.mascararCPF(cpf);
   const b = lote();
@@ -248,6 +267,7 @@ export async function adminCriar(d) {
 }
 
 export async function adminAlterarHorario(a, data, hora) {
+  if (a.data === data && a.hora === hora) throw new Error('Escolha uma data ou horário diferente do atual.');
   const b = lote();
   b.delete(doc(db, 'vagas', C.slotId(a.data, a.hora)));
   b.set(doc(db, 'vagas', C.slotId(data, hora)), { data, hora, ref: a.ref });
@@ -275,12 +295,12 @@ export async function adminCancelar(a, motivo) {
   await b.commit();
 }
 
-/** presente | concluido | faltou  (a vaga continua ocupada; o CPF é liberado ao concluir/faltar) */
+/** presente | concluido | faltou  (a vaga continua ocupada; só "faltou" libera o CPF — quem concluiu o atendimento não agenda de novo) */
 export async function adminMarcar(a, status) {
   const b = lote();
   b.update(doc(db, 'agendamentos', a.ref), { status, atualizadoEm: serverTimestamp() });
   b.update(doc(db, 'comprovantes', a.chave), { status });
-  if (status === 'concluido' || status === 'faltou') b.delete(doc(db, 'cpfAtivos', a.cpfKey));
+  if (status === 'faltou') b.delete(doc(db, 'cpfAtivos', a.cpfKey));
   hist(b, a.ref, status, '');
   audit(b, `marcar_${status}`, a.ref, '');
   await b.commit();
@@ -289,6 +309,10 @@ export async function adminMarcar(a, status) {
 /** Salva (mescla) os campos informados. Nunca apaga o período nem a logo se não vierem. */
 export async function salvarConfig(campos) {
   const b = lote();
+  for (const k of ['abertura', 'fechamento']) {
+    if (k in campos && !C.dataValida(campos[k])) throw new Error(`Data de ${k === 'abertura' ? 'abertura' : 'fechamento'} inválida.`);
+  }
+  if (campos.abertura && campos.fechamento && campos.abertura > campos.fechamento) throw new Error('A abertura deve ser anterior ao fechamento.');
   b.set(doc(db, 'config', 'geral'), campos, { merge: true });
   audit(b, 'salvar_config', '', Object.keys(campos).filter((k) => k !== 'logo').join(', '));
   await b.commit();
@@ -329,7 +353,11 @@ export async function gerarBackup() {
     const h = await getDocs(collection(db, `agendamentos/${a.id}/historico`));
     a.historico = h.docs.map((d) => ({ id: d.id, data: d.data() }));
   }
-  const rep = JSON.stringify(out, (_, v) => (v && typeof v === 'object' && typeof v.toDate === 'function' ? { __ts: v.toDate().toISOString() } : v));
+  // `this[k]` é o valor original (antes do toJSON do Timestamp), por isso function e não seta.
+  const rep = JSON.stringify(out, function (k, v) {
+    const raw = this[k];
+    return raw && typeof raw === 'object' && typeof raw.toDate === 'function' ? { __ts: raw.toDate().toISOString() } : v;
+  });
   const b = lote();
   audit(b, 'backup', '', `${out.colecoes.agendamentos.length} agendamentos`);
   await b.commit().catch(() => {});
@@ -339,22 +367,33 @@ export async function gerarBackup() {
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 const reviver = (_, v) => (v && typeof v === 'object' && '__ts' in v ? Timestamp.fromDate(new Date(v.__ts)) : v);
 
-/** Restaura os documentos do arquivo (sobrescreve os de mesmo ID). */
+/**
+ * Restaura os documentos do arquivo. As regras proíbem alterar vagas, cpfAtivos e
+ * histórico já existentes; por isso esses são gravados só se ainda não existirem.
+ * Vagas são agrupadas em até 15 datas por lote (limite de 20 consultas às regras).
+ */
 export async function restaurarBackup(texto) {
   const dados = JSON.parse(texto, reviver);
   if (!dados || dados.versao !== 1 || !dados.colecoes) throw new Error('Arquivo de backup inválido.');
-  let n = 0;
-  let b = lote(); let cont = 0;
-  const flush = async () => { if (cont) { await b.commit(); b = lote(); cont = 0; } };
-  const add = async (ref, data) => { b.set(ref, data); n++; if (++cont >= 400) await flush(); };
+  let n = 0; let ignorados = 0;
+  let b = lote(); let cont = 0; let datas = new Set();
+  const flush = async () => { if (cont) { await b.commit(); b = lote(); cont = 0; datas = new Set(); } };
+  const SO_NOVO = new Set(['vagas', 'cpfAtivos']);
+  const add = async (ref, data, soNovo, dataVaga) => {
+    if (soNovo && (await getDoc(ref)).exists()) { ignorados++; return; }
+    if (dataVaga && !datas.has(dataVaga) && datas.size >= 15) await flush();
+    if (dataVaga) datas.add(dataVaga);
+    b.set(ref, data); n++;
+    if (++cont >= 300) await flush();
+  };
   for (const nome of COLECOES_BACKUP) {
     for (const it of dados.colecoes[nome] || []) {
-      await add(doc(db, nome, it.id), it.data);
-      for (const h of it.historico || []) await add(doc(db, `${nome}/${it.id}/historico`, h.id), h.data);
+      await add(doc(db, nome, it.id), it.data, SO_NOVO.has(nome), nome === 'vagas' ? it.data.data : null);
+      for (const h of it.historico || []) await add(doc(db, `${nome}/${it.id}/historico`, h.id), h.data, true, null);
     }
   }
   await flush();
-  const f = lote(); audit(f, 'restaurar_backup', '', `${n} documentos`); await f.commit();
+  const f = lote(); audit(f, 'restaurar_backup', '', `${n} documentos, ${ignorados} já existentes`); await f.commit();
   return n;
 }
 

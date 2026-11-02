@@ -27,6 +27,7 @@ ok('exige login', await p.locator('#login').isVisible() && !(await p.locator('#p
 await p.fill('#lEmail', 'a@b.c'); await p.fill('#lSenha', 'ok'); await p.click('#fLogin button'); await p.waitForSelector('#painel:not(.oculto)');
 await p.waitForSelector('.fx-dia[data-d]');
 ok('fins de semana desabilitados', (await p.locator('.fx-dia[disabled]').count()) >= 8);
+if (u.slice(0, 7) !== hoje.slice(0, 7)) await p.click('#mProx'); // dia útil pode cair no mês seguinte
 const cel = p.locator(`.fx-dia[data-d="${u}"]`);
 ok('dia aberto mostra ocupação 7/20', (await cel.textContent()).includes('7/20'));
 await p.screenshot({ path: `${out}/func-1.png` });

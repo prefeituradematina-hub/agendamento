@@ -16,10 +16,10 @@ const hoje = C.hojeBR();
 const out = process.env.SHOTS || '/tmp';
 const res = []; const ok = (n, c, d = '') => { res.push(!!c); console.log(c ? '  ✔' : '  ✘', n, d); };
 const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 375, height: 740 }, isMobile: true });
-async function nova(init) {
+async function nova(init, soCfg = false) {
   const p = await ctx.newPage(); p.erros = []; p.on('pageerror', (e) => p.erros.push(e.message));
   await p.route('https://www.gstatic.com/**', (r) => r.fulfill({ contentType: 'text/javascript', body: stub }));
-  await p.route('**/firebase-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: 'export const firebaseConfig={apiKey:"t",appId:"t",projectId:"t"};export const appCheckSiteKey="";export const usarEmulador=false;' }));
+  await p.route('**/firebase-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: soCfg ? 'export const firebaseConfig={apiKey:"t",appId:"t",projectId:"t"};' : 'export const firebaseConfig={apiKey:"t",appId:"t",projectId:"t"};export const appCheckSiteKey="";export const usarEmulador=false;' }));
   await p.addInitScript(([h, f, extra]) => { const s = (globalThis.__store ||= new Map()); s.set('config/geral', { nomeSAC: 'SAC', municipio: 'M', local: 'L', endereco: 'E', abertura: h, fechamento: f, ...(extra.cfg || {}) }); Object.assign(globalThis, extra.g || {}); }, [hoje, C.somarDias(hoje, 60), init]);
   return p;
 }
@@ -42,7 +42,7 @@ p = await nova({ g: { __lento: 3000 } }); await p.addInitScript((d) => globalThi
 await p.waitForSelector('#cal .dia:not(.vazio)', { timeout: 1500 });
 ok('com conexão lenta o calendário já aparece antes da resposta', true);
 await p.waitForFunction((n) => document.querySelector('#calCarga').classList.contains('oculto'), 0, { timeout: 8000 });
-const dia = Number(seg.slice(8)); const m = seg.slice(0, 7); if (m > hoje.slice(0, 7)) await p.click('#mProx');
+const dia = Number(seg.slice(8)); const m = seg.slice(0, 7);
 await p.waitForTimeout(3500);
 ok('depois da resposta, o dia bloqueado fica desabilitado', await p.locator('#cal .dia', { hasText: new RegExp('^' + dia + '$') }).first().isDisabled());
 // 3) período salvo em formato errado (ex.: editado à mão) não derruba o calendário
@@ -61,4 +61,27 @@ ok('após o tempo limite mostra mensagem clara com o protocolo de referência', 
 ok('botão volta ao normal e pode tentar de novo', !(await p.locator('#c3').isDisabled()) && (await p.textContent('#c3')).includes('CONFIRMAR'));
 ok('nenhum comprovante é exibido quando não houve confirmação', !(await p.locator('#comprovante').count()));
 ok('sem erros de JavaScript (gravação travada)', p.erros.length === 0, p.erros.join('|'));
+// 5) banco Firestore inexistente: a mensagem precisa explicar, com o código
+p = await nova({ g: { __semBancoGravar: true } }); await ate(p);
+await p.waitForSelector('#cal .dia:not(.vazio):not([disabled])'); await p.locator('#cal .dia:not([disabled]):not(.vazio)').first().click();
+await p.waitForSelector('.hora.livre'); await p.locator('.hora.livre').first().click(); await p.click('#c2'); await p.check('#lgpd'); await p.click('#c3');
+await p.waitForSelector('#e3:not(.oculto)');
+const m5 = await p.textContent('#e3'); ok('erro not-found explica que o banco não foi criado e mostra o código', m5.includes('banco de dados') && m5.includes('not-found') && m5.includes('Nada foi reservado'));
+p = await nova({ g: { __semBanco: true } }); await p.goto(base + '/index.html'); await p.waitForSelector('#avisoCfg:not(.oculto)');
+ok('sem banco na abertura: aviso claro no topo', (await p.textContent('#avisoCfg')).includes('banco de dados'));
+await p.click('#bAgendar'); await p.waitForSelector('.toast.erro'); ok('sem banco: o botão responde com o motivo (não fica morto) e não abre o formulário', (await p.textContent('#toast')).includes('banco de dados') && (await p.locator('#vAgendar').isHidden()));
+// 6) leitura de horários negada (regras não publicadas): mensagem com causa e código
+p = await nova({ g: { __negaVagas: true } }); await ate(p);
+await p.waitForSelector('#cal .dia:not(.vazio):not([disabled])'); await p.locator('#cal .dia:not([disabled]):not(.vazio)').first().click();
+await p.waitForFunction(() => document.querySelector('#e2').textContent.length > 0);
+const m6 = await p.textContent('#e2'); ok('erro ao carregar horários mostra causa provável e código', m6.includes('regras') && m6.includes('permission-denied'));
+// 7) arquivo firebase-config.js com SÓ o firebaseConfig (como o do console) não derruba o sistema
+p = await nova({}, true); await ate(p);
+await p.waitForSelector('#cal .dia:not(.vazio)', { timeout: 3000 }); ok('config com só firebaseConfig: o sistema funciona', p.erros.length === 0, p.erros.join('|'));
+// 8) agenda ainda não aberta (config não salva): o botão responde explicando, não fica "morto"
+p = await nova({}); await p.addInitScript(() => globalThis.__store.delete('config/geral'));
+await p.goto(base + '/index.html'); await p.waitForSelector('#avisoCfg:not(.oculto)');
+ok('botão continua clicável quando a agenda ainda não foi aberta', !(await p.locator('#bAgendar').isDisabled()));
+await p.click('#bAgendar'); await p.waitForSelector('.toast.erro');
+ok('ao clicar, explica o motivo e não abre o formulário', (await p.textContent('#toast')).includes('ainda não abriu') && (await p.locator('#vAgendar').isHidden()));
 await b.close(); srv.close(); const f = res.filter((x) => !x).length; console.log(`\n${res.length - f}/${res.length} OK`); process.exit(f ? 1 : 0);

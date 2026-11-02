@@ -75,7 +75,7 @@ O painel permite cancelar agendamentos suspeitos (libera a vaga na hora).
 ## 8. LGPD
 
 - Coleta só o necessário; o CPF nunca aparece inteiro em comprovante, URL ou página pública.
-- Consultar/cancelar exige **protocolo + CPF + nascimento** (o ID do comprovante é derivado desses três dados; não existe listagem pública).
+- Consultar/cancelar exige **protocolo + CPF** (o ID do comprovante é derivado desses dois dados; não existe listagem pública).
 - Retenção: painel → *Backup e LGPD* → **Anonimizar** atendimentos encerrados anteriores a uma data.
 - Defina o responsável (encarregado) e a base legal junto à assessoria jurídica do município, e ajuste o texto de privacidade em `index.html` (seção `vPriv`).
 
@@ -103,3 +103,17 @@ Veja `docs/relatorio-testes.md` para o que foi e o que não foi executado.
 ## 12. Desenvolvimento local
 
 `python3 -m http.server 8000` na pasta e abra `http://localhost:8000` (os módulos JS exigem servidor; não abra o arquivo direto). Adicione `localhost` aos domínios autorizados do Firebase.
+
+## 13. Problemas comuns (diagnóstico)
+
+O sistema mostra um **código** no fim da mensagem de erro. Veja o que significa:
+
+| Código / sintoma | Causa | Solução |
+|---|---|---|
+| `not-found` / "banco de dados ainda não foi criado" | O **Firestore** não existe no projeto (o "Realtime Database" é outro serviço e não serve) | Console Firebase → **Build → Firestore Database → Criar banco de dados** (modo produção, região São Paulo). Depois **Regras → colar `firestore.rules` → Publicar** |
+| `permission-denied` | Regras não publicadas, período do calendário não salvo, data bloqueada/fora do período, horário já ocupado, ou administrador sem documento em `admins` | Publicar as regras; em **Dias de funcionamento** salvar o período; conferir o UID em `admins` |
+| `timeout` / "Sem resposta do servidor" | Internet ruim ou rede bloqueando o Google | Testar em outra rede/4G e sem extensões de bloqueio |
+| Login do painel falha | Domínio não autorizado ou login por e-mail/senha desativado | Authentication → Domínios autorizados e Método de login |
+| "Sistema ainda não configurado" | `apiKey` ou `appId` ainda são "COLOQUE…" em `firebase-config.js` | Colar os valores reais do app Web |
+
+Dica: pressione **F12 → Console** para ver o erro técnico completo.

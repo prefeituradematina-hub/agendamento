@@ -2,6 +2,7 @@ import * as C from './core.js';
 import * as DB from './firebase.js';
 import { aplicarMarca, logoutOcioso } from './marca.js';
 
+window.__cinOk = true;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -14,7 +15,7 @@ function toast(msg, erro = false) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (erro ? ' erro' : '');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('oculto'), 4500);
 }
-const msgErro = (e) => (e.code === 'permission-denied' ? 'Operação recusada pelas regras de segurança.' : 'Erro: ' + (e.message || e));
+const msgErro = (e) => DB.explicarErro(e) || 'Erro: ' + (e.message || e);
 
 // ---------------------------------------------------------------------
 //  Login

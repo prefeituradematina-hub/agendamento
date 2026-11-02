@@ -15,8 +15,10 @@ export const collection = (_db, ...p) => ({ path: p.join('/'), isColl: true });
 export const where = (f, op, v) => ({ t: 'w', f, op, v }); export const orderBy = (f) => ({ t: 'o', f }); export const limit = (n) => ({ t: 'l', n });
 export const query = (c, ...cs) => ({ ...c, cs });
 const snap = (path, data) => ({ id: path.split('/').pop(), ref: { path }, data: () => data, exists: () => data !== undefined });
-export async function getDoc(r) { return snap(r.path, store.get(r.path)); }
+export async function getDoc(r) {
+  if (globalThis.__semBanco) { const e = new Error('not-found'); e.code = 'not-found'; throw e; } return snap(r.path, store.get(r.path)); }
 export async function getDocs(q) {
+  if (globalThis.__negaVagas && q.path === 'vagas') { const e = new Error('denied'); e.code = 'permission-denied'; throw e; }
   if (globalThis.__lento && q.path === 'bloqueios') await new Promise((r) => setTimeout(r, globalThis.__lento));
   if (globalThis.__travado && q.path === 'bloqueios') await new Promise(() => {});
   const pre = q.path + '/'; let out = [];
@@ -49,6 +51,7 @@ export const onAuthStateChanged = (_a, f) => { listeners.push(f); f(globalThis._
 
 export const getDocFromServer = async (r) => getDoc(r);
 export async function runTransaction(_db, fn) {
+  if (globalThis.__semBancoGravar) { const e = new Error('The database (default) does not exist'); e.code = 'not-found'; throw e; }
   if (globalThis.__commitTravado) await new Promise(() => {});
   const b = writeBatch();
   await fn({ set: (r, d, o) => b.set(r, d, o), update: (r, d) => b.update(r, d), delete: (r) => b.delete(r) });

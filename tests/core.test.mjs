@@ -71,10 +71,10 @@ test('protocolo: formato, unicidade e imprevisibilidade', () => {
   assert.equal(C.normalizarProtocolo('abc'), '');
 });
 
-test('chave do comprovante depende dos 3 dados; CPF-key não revela o CPF', async () => {
-  const k1 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '529.982.247-25', '1990-05-20', 1000);
-  const k2 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '52998224725', '1990-05-20', 1000);
-  const k3 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '52998224725', '1990-05-21', 1000);
+test('chave do comprovante depende de protocolo e CPF; CPF-key não revela o CPF', async () => {
+  const k1 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '529.982.247-25', 1000);
+  const k2 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '52998224725', 1000);
+  const k3 = await C.gerarChave('CIN-AAAA-BBBB-CCCC', '52998224726', 1000);
   assert.equal(k1, k2); assert.notEqual(k1, k3); assert.match(k1, /^[0-9a-f]{64}$/);
   const ck = await C.gerarCpfKey('52998224725'); assert.match(ck, /^[0-9a-f]{64}$/); assert.ok(!ck.includes('52998224725'));
 });
@@ -114,4 +114,8 @@ test('identidade visual: cor, logo e fuso do aparelho', () => {
   assert.ok(!C.logoValida('data:image/png;base64,' + 'A'.repeat(300001)));
   // meia-noite em Brasília não vira "24:00"
   assert.equal(C.horaAgoraBR(new Date('2026-11-10T03:05:00Z')), '00:05'); assert.equal(C.hojeBR(new Date('2026-11-10T03:05:00Z')), '2026-11-10');
+});
+
+test('protocolo: corrige O/I/L digitados no lugar de 0/1', () => {
+  assert.equal(C.normalizarProtocolo('cin-oabc-1lO1-2345'), 'CIN-0ABC-1101-2345');
 });

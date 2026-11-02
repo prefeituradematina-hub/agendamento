@@ -30,7 +30,7 @@ const admin = () => env.authenticatedContext('adm1').firestore();
 
 async function reservar(db, { data = seg, hora = '08:00', cpf = '52998224725', nasc = '1990-05-20' } = {}) {
   const ref = crypto.randomUUID(); const protocolo = C.gerarProtocolo();
-  const chave = await C.gerarChave(protocolo, cpf, nasc, 1000); const cpfKey = await C.gerarCpfKey(cpf);
+  const chave = await C.gerarChave(protocolo, cpf, 1000); const cpfKey = await C.gerarCpfKey(cpf);
   const b = writeBatch(db);
   b.set(doc(db, 'vagas', `${data}_${hora}`), { data, hora, ref });
   b.set(doc(db, 'agendamentos', ref), { ref, protocolo, nome: 'Maria Silva', cpf, cpfMasc: C.mascararCPF(cpf), nascimento: nasc, telefone: '73912345678', email: '', certidao: 'nascimento', data, hora, status: 'agendado', origem: 'cidadao', chave, cpfKey, criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
@@ -128,4 +128,24 @@ test('auditoria só aceita inclusão', async () => {
   const d = admin();
   await assertSucceeds(setDoc(doc(d, 'auditoria/a1'), { uid: 'adm1', em: serverTimestamp(), acao: 'x' }));
   await assertFails(setDoc(doc(d, 'auditoria/a1'), { uid: 'adm1', em: serverTimestamp(), acao: 'y' }));
+});
+
+test('datas impossíveis (30/02, mês 13, 31/11) são recusadas', async () => {
+  for (const d of ['2026-02-30', '2026-13-01', '2026-11-31']) {
+    await assertFails((await reservar(anon(), { data: d })).b.commit());
+  }
+});
+
+test('duas reservas num só lote usando o mesmo cpfKey são recusadas', async () => {
+  const db = anon();
+  const a = await reservar(db, { hora: '08:00' });
+  // a 2ª reserva aponta para o cpfKey da 1ª (o cliente poderia tentar isso)
+  const ref2 = crypto.randomUUID(); const prot2 = C.gerarProtocolo();
+  const chave2 = await C.gerarChave(prot2, '11144477735', 1000);
+  const l2 = writeBatch(db);
+  l2.set(doc(db, 'vagas', `${seg}_08:15`), { data: seg, hora: '08:15', ref: ref2 });
+  l2.set(doc(db, 'agendamentos', ref2), { ref: ref2, protocolo: prot2, nome: 'Joao Souza', cpf: '11144477735', cpfMasc: C.mascararCPF('11144477735'), nascimento: '1990-05-20', telefone: '73912345678', email: '', certidao: 'nascimento', data: seg, hora: '08:15', status: 'agendado', origem: 'cidadao', chave: chave2, cpfKey: a.cpfKey, criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
+  l2.set(doc(db, 'comprovantes', chave2), { ref: ref2, protocolo: prot2, nome: 'Joao Souza', cpfMasc: C.mascararCPF('11144477735'), data: seg, hora: '08:15', certidao: 'nascimento', status: 'agendado', criadoEm: serverTimestamp() });
+  await assertSucceeds(a.b.commit());
+  await assertFails(l2.commit());
 });

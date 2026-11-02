@@ -50,11 +50,13 @@ service cloud.firestore {
 
     // Segunda a sexta. 03/01/2000 foi uma segunda-feira: resto da divisão
     // por 7 dias < 5 dias => seg..sex.
+    // Também recusa datas impossíveis (2026-02-30, 2026-13-01): a data é
+    // reconstruída e precisa voltar idêntica. dayOfWeek: 1=segunda ... 7=domingo.
     function diaUtil(d) {
       let p = d.split('-');
-      let ms = timestamp.date(int(p[0]), int(p[1]), int(p[2])).toMillis()
-             - timestamp.date(2000, 1, 3).toMillis();
-      return ms % 604800000 < 432000000;
+      let y = int(p[0]); let m = int(p[1]); let dd = int(p[2]);
+      let t = timestamp.date(y, m, dd);
+      return t.year() == y && t.month() == m && t.day() == dd && t.dayOfWeek() <= 5;
     }
 
     function horaOk(h) {
@@ -112,7 +114,8 @@ service cloud.firestore {
         && v.data >= cfg.abertura && v.data <= cfg.fechamento
         && ag.data == v.data && ag.hora == v.hora && ag.status == 'agendado'
         && existsAfter(/databases/$(database)/documents/comprovantes/$(ag.chave))
-        && existsAfter(/databases/$(database)/documents/cpfAtivos/$(ag.cpfKey));
+        && existsAfter(/databases/$(database)/documents/cpfAtivos/$(ag.cpfKey))
+        && getAfter(/databases/$(database)/documents/cpfAtivos/$(ag.cpfKey)).data.ref == v.ref;
     }
 
     function cancelamentoCidadaoDe(refAg) {
@@ -199,7 +202,8 @@ service cloud.firestore {
         && v.status == 'agendado'
         && v.criadoEm == request.time
         && ag.chave == k && ag.protocolo == v.protocolo
-        && ag.data == v.data && ag.hora == v.hora && ag.nome == v.nome;
+        && ag.data == v.data && ag.hora == v.hora && ag.nome == v.nome
+        && ag.cpfMasc == v.cpfMasc && ag.certidao == v.certidao && ag.ref == v.ref;
     }
 
     function comprovanteCancelOk(a, n) {

@@ -46,7 +46,6 @@ await preencher('52998224725');
 const dia = Number(seg.slice(8));
 const alvo = p.locator('#cal .dia:not(.vazio)').filter({ hasText: new RegExp('^' + dia + '$') });
 // se o próximo dia útil cair no mês seguinte, avança o calendário
-if (seg.slice(0, 7) !== (await p.textContent('#mTit')).length && seg.slice(0, 7) > hoje.slice(0, 7)) await p.click('#mProx');
 ok('sábado e domingo aparecem desabilitados', await p.locator('#cal .dia[disabled]').count() > 0);
 await p.locator('#cal .dia:not([disabled]):not(.vazio)').filter({ hasText: new RegExp('^' + dia + '$') }).first().click();
 await p.waitForSelector('.hora');
@@ -67,7 +66,6 @@ ok('URL não contém CPF', !p.url().includes('529'));
 
 // conflito: outro cidadão tenta o mesmo horário
 await p.click('#bIni'); await preencher('11144477735', 'João Pedro Lima');
-if (seg.slice(0, 7) > hoje.slice(0, 7)) await p.click('#mProx');
 await p.locator('#cal .dia:not([disabled]):not(.vazio)').filter({ hasText: new RegExp('^' + dia + '$') }).first().click();
 await p.waitForSelector('.hora');
 await p.screenshot({ path: '/tmp/claude-0/-home-claude/4502446a-0fc9-5dc1-a475-42bb68f62370/scratchpad/horas.png' });
@@ -83,16 +81,16 @@ ok('corrida: se o horário foi tomado, avisa e volta para escolher outro (nada �
 await p.click('#v2').catch(() => {}); await p.goto(base + '/index.html'); // (store em memória é perdido ao recarregar; refaz agendamento)
 await semear(p); await p.reload(); await p.waitForSelector('#bAgendar:not([disabled])');
 await preencher('52998224725');
-if (seg.slice(0, 7) > hoje.slice(0, 7)) await p.click('#mProx');
+
 await p.locator('#cal .dia:not([disabled]):not(.vazio)').filter({ hasText: new RegExp('^' + dia + '$') }).first().click(); await p.waitForSelector('.hora');
 await p.locator('.hora', { hasText: '08h00' }).click(); await p.click('#c2'); await p.check('#lgpd'); await p.click('#c3'); await p.waitForSelector('#comprovante');
 const prot2 = (await p.textContent('#comprovante')).match(/CIN-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/)[0];
 await p.click('#bIni'); await p.click('#bConsultar');
-await p.fill('#cProt', prot2); await p.fill('#cCpf', '111.111.111-11'); await p.fill('#cNasc', '1990-05-20'); await p.click('#fc button[type=submit]');
+await p.fill('#cProt', prot2); await p.fill('#cCpf', '111.111.111-11'); await p.click('#fc button[type=submit]');
 ok('consulta com CPF inválido é recusada', await p.locator('#eC').isVisible());
-await p.fill('#cCpf', '529.982.247-25'); await p.fill('#cNasc', '1991-01-01'); await p.click('#fc button[type=submit]');
-await p.waitForSelector('#eC:not(.oculto)'); ok('consulta com nascimento errado: "não encontrado" (não vaza dados)', (await p.textContent('#eC')).includes('não encontrado'));
-await p.fill('#cNasc', '1990-05-20'); await p.click('#fc button[type=submit]'); await p.waitForSelector('#comprovante');
+await p.fill('#cCpf', '529.982.247-25'); await p.fill('#cProt', 'CIN-0000-0000-0000'); await p.click('#fc button[type=submit]');
+await p.waitForSelector('#eC:not(.oculto)'); ok('consulta com protocolo errado: "não encontrado" (não vaza dados)', (await p.textContent('#eC')).includes('não encontrado'));
+await p.fill('#cProt', prot2); await p.click('#fc button[type=submit]'); await p.waitForSelector('#comprovante');
 ok('consulta correta mostra o comprovante', (await p.textContent('#comprovante')).includes(prot2));
 p.on('dialog', (d) => d.accept()); await p.click('#bCanc'); await p.waitForSelector('.cancelado-marca');
 ok('cancelamento marca CANCELADO e libera a vaga (vaga some do store)', await p.evaluate((s) => !globalThis.__store.has(`vagas/${s}_08:00`), seg));

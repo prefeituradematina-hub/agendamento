@@ -241,7 +241,9 @@ export function gerarProtocolo() {
 
 export function normalizarProtocolo(p) {
   const s = String(p ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-  const corpo = s.startsWith('CIN') ? s.slice(3) : s;
+  let corpo = s.startsWith('CIN') ? s.slice(3) : s;
+  // O alfabeto do protocolo não tem O, I, L: corrige a confusão comum com 0 e 1.
+  corpo = corpo.replace(/O/g, '0').replace(/[IL]/g, '1');
   if (corpo.length !== 12) return '';
   return `CIN-${corpo.slice(0, 4)}-${corpo.slice(4, 8)}-${corpo.slice(8, 12)}`;
 }
@@ -254,14 +256,14 @@ const enc = new TextEncoder();
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 /**
- * Chave secreta do comprovante = PBKDF2(protocolo | CPF | nascimento).
- * É o ID do documento "comprovantes": só quem sabe os três dados chega nele.
+ * Chave secreta do comprovante = PBKDF2(protocolo | CPF).
+ * É o ID do documento "comprovantes": só quem sabe os dois dados chega nele.
  */
-export async function gerarChave(protocolo, cpf, nascimento, iteracoes = 120000) {
+export async function gerarChave(protocolo, cpf, iteracoes = 120000) {
   const material = await crypto.subtle.importKey(
-    'raw', enc.encode(`${protocolo}|${apenasDigitos(cpf)}|${nascimento}`), 'PBKDF2', false, ['deriveBits']);
+    'raw', enc.encode(`${protocolo}|${apenasDigitos(cpf)}`), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('sac-cin/chave/v1'), iterations: iteracoes },
+    { name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('sac-cin/chave/v2'), iterations: iteracoes },
     material, 256);
   return hex(bits);
 }

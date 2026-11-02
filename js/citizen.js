@@ -8,6 +8,8 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 let cfg = { ...DB.CONFIG_PADRAO };
 let bloqueios = new Map();
+let problema = ''; // motivo pelo qual não dá para agendar agora (mostrado ao clicar)
+window.__cinOk = true;
 const est = { dados: null, data: '', hora: '', mes: '' };
 
 const views = ['vInicio', 'vAgendar', 'vComp', 'vConsulta', 'vPriv'];
@@ -31,7 +33,7 @@ async function iniciar() {
   if (!DB.configurado) {
     const a = $('#avisoCfg'); a.classList.remove('oculto');
     a.innerHTML = '<strong>Sistema ainda não configurado.</strong> Preencha o arquivo <code>firebase-config.js</code> com os dados do seu projeto Firebase.';
-    $('#bAgendar').disabled = true; $('#bConsultar').disabled = true;
+    problema = 'Sistema ainda não configurado: falta preencher a apiKey e o appId no arquivo firebase-config.js.';
     return;
   }
   try {
@@ -46,19 +48,25 @@ async function iniciar() {
       + (cfg.telefone ? `<br>Tel.: ${C.esc(cfg.telefone)}` : '') + (cfg.email ? `<br>${C.esc(cfg.email)}` : '');
     if (!cfg.configurada) {
       const a = $('#avisoCfg'); a.classList.remove('oculto');
-      a.textContent = 'O SAC ainda não abriu a agenda. Volte em breve.';
-      $('#bAgendar').disabled = true;
+      a.textContent = 'O SAC ainda não abriu a agenda. Volte em breve. (Administrador: entre no painel, salve as Configurações e o período em "Dias de funcionamento".)';
+      problema = a.textContent;
     }
   } catch (e) {
     console.error(e);
     const a = $('#avisoCfg'); a.classList.remove('oculto');
-    a.innerHTML = 'Não foi possível carregar as informações agora. Verifique sua internet. <button class="btn peq claro" id="bTentar" type="button">Tentar de novo</button>';
+    const dica = DB.explicarErro(e, true);
+    a.innerHTML = `${C.esc(dica || 'Não foi possível carregar as informações agora. Verifique sua internet.')} <span class="dica">(código: ${C.esc(e.code || e.name || 'erro')})</span> <button class="btn peq claro" id="bTentar" type="button">Tentar de novo</button>`;
     $('#bTentar').onclick = () => location.reload();
+    if (e.code === 'not-found' || e.code === 'permission-denied') problema = a.textContent;
   }
 }
 
-$('#bAgendar').onclick = () => { ir('vAgendar'); passo(1); };
-$('#bConsultar').onclick = () => ir('vConsulta');
+function mostrarProblema() {
+  const a = $('#avisoCfg'); a.classList.remove('oculto'); if (!a.textContent.trim()) a.textContent = problema;
+  window.scrollTo({ top: 0, behavior: 'smooth' }); toast(problema, true);
+}
+$('#bAgendar').onclick = () => { if (problema) return mostrarProblema(); ir('vAgendar'); passo(1); };
+$('#bConsultar').onclick = () => { if (problema && !cfg.configurada) return mostrarProblema(); ir('vConsulta'); };
 $('#lkPriv').onclick = (e) => { e.preventDefault(); ir('vPriv'); };
 $$('[data-voltar]').forEach((b) => (b.onclick = () => ir('vInicio')));
 
@@ -77,7 +85,7 @@ $('#cpf').addEventListener('input', (e) => { e.target.value = C.formatarCPF(e.ta
 $('#cCpf').addEventListener('input', (e) => { e.target.value = C.formatarCPF(e.target.value); });
 $('#tel').addEventListener('input', (e) => { e.target.value = C.formatarTelefone(e.target.value); });
 $('#cProt').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
-$('#nasc').max = C.hojeBR(); $('#cNasc').max = C.hojeBR();
+$('#nasc').max = C.hojeBR();
 
 function erroCampo(k, msg) { $(`[data-e="${k}"]`).textContent = msg || ''; }
 
@@ -98,7 +106,13 @@ $('#f1').addEventListener('submit', (ev) => {
   if (!ok) { $('.erro-campo:not(:empty)')?.previousElementSibling?.focus?.(); return; }
   est.dados = d; est.data = ''; est.hora = '';
   const hoje = C.hojeBR();
-  est.mes = (cfg.abertura > hoje ? cfg.abertura : hoje).slice(0, 7);
+  // Abre no mês do primeiro dia que ainda aceita agendamento (no fim do mês, vai direto ao próximo).
+  const base = cfg.abertura > hoje ? cfg.abertura : hoje;
+  est.mes = base.slice(0, 7);
+  const c0 = { ...ctx(), bloqueios: null };
+  for (let d = base, i = 0; d <= cfg.fechamento && i < 400; d = C.somarDias(d, 1), i++) {
+    if (C.dataAgendavel(d, c0)) { est.mes = d.slice(0, 7); break; }
+  }
   passo(2); montarCalendario(); $('#boxHoras').classList.add('oculto'); $('#c2').disabled = true;
 });
 
@@ -187,7 +201,10 @@ async function escolherData(d) {
   } catch (e) {
     if (meu !== tokenDia) return;
     console.error(e); box.innerHTML = '';
-    $('#e2').textContent = 'Não foi possível carregar os horários. Tente novamente.';
+    const motivo = e.code === 'permission-denied' ? 'O sistema ainda não está liberado para consultas (regras do banco não publicadas). Avise o SAC.'
+      : e.code === 'not-found' ? 'O banco de dados do sistema ainda não foi criado. Avise o SAC.'
+      : 'Verifique sua internet e tente novamente.';
+    $('#e2').textContent = `Não foi possível carregar os horários. ${motivo} (código: ${e.code || e.name || 'erro'})`;
   }
 }
 
@@ -232,10 +249,10 @@ $('#c3').onclick = async () => {
       e3.innerHTML = `Não conseguimos confirmar o agendamento porque a internet ou o servidor não respondeu. <strong>Nada foi garantido.</strong> Aguarde um minuto, vá em "Consultar ou cancelar agendamento" na página inicial${e.protocolo ? ` (protocolo de referência: <strong>${C.esc(e.protocolo)}</strong>)` : ''} para ver se o horário foi registrado e, se não foi, tente de novo.`;
       e3.classList.remove('oculto');
     } else if (e.code === 'recusado') {
-      e3.textContent = 'O agendamento não foi aceito. Possíveis motivos: já existe um agendamento ativo para este CPF (use "Consultar ou cancelar" na página inicial) ou a data não está mais disponível. Nada foi reservado.';
+      e3.textContent = 'O agendamento não foi aceito. Só é permitido um agendamento por CPF: se este CPF já tem um agendamento, use "Consultar ou cancelar" na página inicial (com o protocolo e o CPF). Também pode ser que o horário não esteja mais disponível. Nada foi reservado.';
       e3.classList.remove('oculto');
     } else {
-      e3.textContent = `Não foi possível confirmar o agendamento. Nada foi reservado. Verifique sua internet e tente novamente. (código: ${e.code || e.name || 'erro'})`;
+      e3.textContent = `${DB.explicarErro(e, true) || 'Não foi possível confirmar o agendamento. Verifique sua internet e tente novamente.'} Nada foi reservado. (código: ${e.code || e.name || 'erro'})`;
       e3.classList.remove('oculto');
     }
   } finally { clearTimeout(lento); setBusy(btn, false); }
@@ -276,13 +293,13 @@ $('#fc').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const e = $('#eC'); e.classList.add('oculto');
   const btn = $('#fc button[type=submit]');
-  const prot = $('#cProt').value; const cpf = $('#cCpf').value; const nasc = $('#cNasc').value;
-  if (!C.normalizarProtocolo(prot) || !C.validarCPF(cpf) || !C.dataValida(nasc)) {
-    e.textContent = 'Confira o protocolo (CIN-XXXX-XXXX-XXXX), o CPF e a data de nascimento.'; e.classList.remove('oculto'); return;
+  const prot = $('#cProt').value; const cpf = $('#cCpf').value;
+  if (!C.normalizarProtocolo(prot) || !C.validarCPF(cpf)) {
+    e.textContent = 'Confira o protocolo (CIN-XXXX-XXXX-XXXX) e o CPF.'; e.classList.remove('oculto'); return;
   }
   setBusy(btn, true, 'Consultando…');
   try {
-    const comp = await DB.consultar(prot, cpf, nasc);
+    const comp = await DB.consultar(prot, cpf);
     if (!comp) { e.textContent = 'Agendamento não encontrado. Confira os dados informados.'; e.classList.remove('oculto'); return; }
     est.dados = null;
     mostrarComprovante(comp, false, comp);

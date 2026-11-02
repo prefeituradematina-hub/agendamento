@@ -3,6 +3,7 @@ import * as DB from './firebase.js';
 import { htmlComprovante } from './comprovante.js';
 import { aplicarMarca, processarLogo, logoutOcioso } from './marca.js';
 
+window.__cinOk = true;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 let cfg = { ...DB.CONFIG_PADRAO };
@@ -18,7 +19,7 @@ const tag = (s) => `<span class="tag ${s}">${C.esc(C.STATUS[s] || s)}</span>`;
 function msgErro(e) {
   if (e instanceof DB.HorarioOcupadoError) return 'Esse horário já está ocupado.';
   if (e.code === 'cpf-ja-agendado') return 'Este CPF já possui agendamento ativo.';
-  if (e.code === 'permission-denied') return 'Operação recusada pelas regras de segurança (data inválida, bloqueada ou horário ocupado).';
+  { const x = DB.explicarErro(e); if (x) return x; }
   return 'Erro: ' + (e.message || e);
 }
 

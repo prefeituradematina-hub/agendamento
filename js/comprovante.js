@@ -24,7 +24,7 @@ export function htmlComprovante(comp, cfg) {
       <dt>Levar</dt><dd>${C.esc(docs)}</dd>
       <dt>Valor</dt><dd>GRATUITO — nenhuma taxa é cobrada</dd>
     </dl>
-    <p style="font-size:.9rem;color:#5b6675;margin-bottom:0">Chegue com alguns minutos de antecedência. Guarde este número de protocolo: com ele, seu CPF e sua data de nascimento você consulta ou cancela o agendamento.</p>
+    <p style="font-size:.9rem;color:#5b6675;margin-bottom:0">Chegue com alguns minutos de antecedência. Guarde este número de protocolo: com ele e o seu CPF você consulta ou cancela o agendamento.</p>
   </div>`;
 }
 
